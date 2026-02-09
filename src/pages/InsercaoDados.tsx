@@ -8,11 +8,14 @@ import {
 } from 'lucide-react';
 
 interface UploadResult {
-  success: boolean;
+  success?: boolean;
+  status?: string;
   imported: number;
-  classified: number;
-  errors: string[];
-  transactions?: any[];
+  classified?: number;
+  errors: number;
+  errorDetails?: Array<{ line: number; error: string }>;
+  totalRows?: number;
+  uploadId?: string;
 }
 
 interface ManualTransaction {
@@ -23,7 +26,7 @@ interface ManualTransaction {
 }
 
 export default function InsercaoDados() {
-  const [activeTab, setActiveTab] = useState<'upload' | 'manual' | 'history'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'manual'>('upload');
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
@@ -73,9 +76,11 @@ export default function InsercaoDados() {
 
     try {
       const res = await uploadApi.csv(file);
-      setUploadResult(res.data.data || res.data);
+      const data = res.data.data || res.data;
+      setUploadResult(data);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao fazer upload. Verifique o formato do arquivo.');
+      const errMsg = err.response?.data?.error || err.response?.data?.details?.join(', ') || 'Erro ao fazer upload. Verifique o formato do arquivo.';
+      setError(errMsg);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -92,7 +97,7 @@ export default function InsercaoDados() {
       await financialApi.createTransaction({
         date: manualForm.date,
         description: manualForm.description,
-        amount: parseFloat(manualForm.amount.replace(',', '.')),
+        amount: Math.abs(parseFloat(manualForm.amount.replace(',', '.'))),
         type: manualForm.type,
       });
       setSaveSuccess(true);
@@ -106,8 +111,12 @@ export default function InsercaoDados() {
   };
 
   const downloadTemplate = () => {
-    const csv = 'data,descricao,valor,tipo\n2025-01-15,Venda de produto,5000.00,receita\n2025-01-16,Aluguel escritório,-3500.00,despesa\n2025-01-17,Serviço consultoria,8000.00,receita\n2025-01-18,Folha de pagamento,-12000.00,despesa';
-    const blob = new Blob([csv], { type: 'text/csv' });
+    // IMPORTANTE: Backend espera:
+    // - data no formato DD/MM/AAAA
+    // - tipo: ENTRADA ou SAIDA
+    // - valor: sempre positivo
+    const csv = 'data,descricao,valor,tipo\n15/01/2025,Venda de produto,5000.00,ENTRADA\n16/01/2025,Aluguel escritório,3500.00,SAIDA\n17/01/2025,Serviço consultoria,8000.00,ENTRADA\n18/01/2025,Folha de pagamento,12000.00,SAIDA';
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -115,6 +124,8 @@ export default function InsercaoDados() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const isUploadSuccess = uploadResult && (uploadResult.success || uploadResult.status === 'COMPLETED' || uploadResult.imported > 0);
 
   return (
     <div className="space-y-6">
@@ -171,6 +182,44 @@ export default function InsercaoDados() {
             </button>
           </div>
 
+          {/* Formato esperado */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <p className="text-sm font-medium text-slate-700 mb-2">Formato esperado do CSV:</p>
+            <div className="overflow-x-auto">
+              <table className="text-xs text-slate-600 w-full">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left py-1.5 px-2 font-semibold">Coluna</th>
+                    <th className="text-left py-1.5 px-2 font-semibold">Formato</th>
+                    <th className="text-left py-1.5 px-2 font-semibold">Exemplo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1.5 px-2 font-medium">data</td>
+                    <td className="py-1.5 px-2">DD/MM/AAAA</td>
+                    <td className="py-1.5 px-2">15/01/2025</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1.5 px-2 font-medium">descricao</td>
+                    <td className="py-1.5 px-2">Texto livre</td>
+                    <td className="py-1.5 px-2">Venda de produto</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-1.5 px-2 font-medium">valor</td>
+                    <td className="py-1.5 px-2">Número positivo</td>
+                    <td className="py-1.5 px-2">5000.00</td>
+                  </tr>
+                  <tr>
+                    <td className="py-1.5 px-2 font-medium">tipo</td>
+                    <td className="py-1.5 px-2">ENTRADA ou SAIDA</td>
+                    <td className="py-1.5 px-2">ENTRADA</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* Drop Zone */}
           <div
             onDragOver={handleDragOver}
@@ -197,7 +246,7 @@ export default function InsercaoDados() {
                   Arraste seu arquivo CSV aqui ou <span className="text-blue-600">clique para selecionar</span>
                 </p>
                 <p className="text-xs text-slate-400 mt-2">
-                  Colunas: data, descricao, valor, tipo (receita/despesa)
+                  Colunas: data (DD/MM/AAAA), descricao, valor (positivo), tipo (ENTRADA/SAIDA)
                 </p>
               </>
             )}
@@ -205,34 +254,34 @@ export default function InsercaoDados() {
 
           {/* Upload Result */}
           {uploadResult && (
-            <div className={`rounded-xl border p-6 ${uploadResult.success ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+            <div className={`rounded-xl border p-6 ${isUploadSuccess ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
               <div className="flex items-center gap-3 mb-4">
-                {uploadResult.success
+                {isUploadSuccess
                   ? <CheckCircle2 className="w-6 h-6 text-emerald-500" />
                   : <AlertTriangle className="w-6 h-6 text-amber-500" />}
                 <h3 className="text-lg font-semibold text-slate-900">
-                  {uploadResult.success ? 'Upload Concluído!' : 'Upload com Avisos'}
+                  {isUploadSuccess ? 'Upload Concluído!' : 'Upload com Avisos'}
                 </h3>
               </div>
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="bg-white rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-slate-900">{uploadResult.imported}</p>
+                  <p className="text-2xl font-bold text-slate-900">{uploadResult.imported || 0}</p>
                   <p className="text-xs text-slate-500">Importadas</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-blue-600">{uploadResult.classified}</p>
-                  <p className="text-xs text-slate-500">Classificadas pela IA</p>
+                  <p className="text-2xl font-bold text-blue-600">{uploadResult.totalRows || 0}</p>
+                  <p className="text-xs text-slate-500">Total de linhas</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-red-500">{uploadResult.errors?.length || 0}</p>
+                  <p className="text-2xl font-bold text-red-500">{uploadResult.errors || 0}</p>
                   <p className="text-xs text-slate-500">Erros</p>
                 </div>
               </div>
-              {uploadResult.errors && uploadResult.errors.length > 0 && (
+              {uploadResult.errorDetails && uploadResult.errorDetails.length > 0 && (
                 <div className="bg-white rounded-lg p-3">
                   <p className="text-xs font-medium text-slate-700 mb-2">Erros encontrados:</p>
-                  {uploadResult.errors.slice(0, 5).map((err, i) => (
-                    <p key={i} className="text-xs text-red-600">{err}</p>
+                  {uploadResult.errorDetails.slice(0, 5).map((err, i) => (
+                    <p key={i} className="text-xs text-red-600">Linha {err.line}: {err.error}</p>
                   ))}
                 </div>
               )}
@@ -272,8 +321,8 @@ export default function InsercaoDados() {
                   onChange={(e) => setManualForm(prev => ({ ...prev, type: e.target.value as 'INCOME' | 'EXPENSE' }))}
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 >
-                  <option value="EXPENSE">Despesa</option>
-                  <option value="INCOME">Receita</option>
+                  <option value="EXPENSE">Despesa (Saída)</option>
+                  <option value="INCOME">Receita (Entrada)</option>
                 </select>
               </div>
             </div>
@@ -298,6 +347,7 @@ export default function InsercaoDados() {
                 required
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
+              <p className="text-xs text-slate-400 mt-1">Informe sempre o valor positivo. O tipo (entrada/saída) define o sentido.</p>
             </div>
             <button
               type="submit"

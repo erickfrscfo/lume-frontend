@@ -11,16 +11,21 @@ interface MetricCardProps {
 }
 
 export default function MetricCard({ title, value, change, icon: Icon, format = 'currency', subtitle }: MetricCardProps) {
-  const formattedValue = format === 'currency'
-    ? formatCurrency(value)
-    : format === 'percent'
-    ? `${value.toFixed(1)}%`
-    : format === 'days'
-    ? `${value} dias`
-    : value.toLocaleString('pt-BR');
+  // Garantir que value é um número válido
+  const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0;
 
-  const isPositive = change !== undefined && change > 0;
-  const isNegative = change !== undefined && change < 0;
+  const formattedValue = format === 'currency'
+    ? formatCurrency(safeValue)
+    : format === 'percent'
+    ? `${safeValue.toFixed(1)}%`
+    : format === 'days'
+    ? `${safeValue > 90 ? '∞' : safeValue.toFixed(0)} dias`
+    : safeValue.toLocaleString('pt-BR');
+
+  // Só mostrar change se for um número válido e diferente de zero
+  const hasChange = change !== undefined && change !== null && typeof change === 'number' && !isNaN(change) && change !== 0;
+  const isPositive = hasChange && change! > 0;
+  const isNegative = hasChange && change! < 0;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-shadow">
@@ -28,7 +33,7 @@ export default function MetricCard({ title, value, change, icon: Icon, format = 
         <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
           <Icon className="w-5 h-5 text-blue-600" />
         </div>
-        {change !== undefined && (
+        {hasChange && (
           <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
             isPositive ? 'bg-emerald-50 text-emerald-700' :
             isNegative ? 'bg-red-50 text-red-700' :
@@ -37,7 +42,7 @@ export default function MetricCard({ title, value, change, icon: Icon, format = 
             {isPositive ? <TrendingUp className="w-3 h-3" /> :
              isNegative ? <TrendingDown className="w-3 h-3" /> :
              <Minus className="w-3 h-3" />}
-            {formatPercent(change)}
+            {formatPercent(change!)}
           </div>
         )}
       </div>

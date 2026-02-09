@@ -13,20 +13,25 @@ import {
   ReferenceLine, Cell, Legend, LineChart, Line
 } from 'recharts';
 
-interface DashboardMetrics {
-  totalIncome: number;
-  totalExpenses: number;
-  netCashflow: number;
+// O backend retorna métricas como objetos { value, change }
+interface MetricValue {
+  value: number;
+  change: number;
+}
+
+interface DashboardData {
+  cashBalance: MetricValue;
+  burnRate: MetricValue;
+  runway: MetricValue;
+  growth: MetricValue;
   transactionCount: number;
-  avgMonthlyIncome: number;
-  avgMonthlyExpense: number;
-  runway?: number;
 }
 
 interface CashflowData {
   month: string;
   income: number;
-  expenses: number;
+  expense: number;  // backend retorna 'expense' (sem s)
+  expenses?: number; // compatibilidade
   net: number;
   isProjection?: boolean;
 }
@@ -40,8 +45,28 @@ interface Scenario {
   isActive: boolean;
 }
 
+// Helper para extrair valor numérico de uma métrica (pode ser objeto ou número)
+function extractValue(metric: any): number {
+  if (metric === null || metric === undefined) return 0;
+  if (typeof metric === 'number') return metric;
+  if (typeof metric === 'object' && metric.value !== undefined) return Number(metric.value) || 0;
+  return Number(metric) || 0;
+}
+
+// Helper para extrair change de uma métrica
+function extractChange(metric: any): number | undefined {
+  if (metric === null || metric === undefined) return undefined;
+  if (typeof metric === 'object' && metric.change !== undefined) {
+    const change = Number(metric.change);
+    // Se change é 0 ou NaN, não mostrar variação
+    if (isNaN(change) || change === 0) return undefined;
+    return change;
+  }
+  return undefined;
+}
+
 export default function Dashboard() {
-  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [dashData, setDashData] = useState<DashboardData | null>(null);
   const [cashflow, setCashflow] = useState<CashflowData[]>([]);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,7 +88,8 @@ export default function Dashboard() {
       ]);
 
       if (metricsRes.status === 'fulfilled') {
-        setMetrics(metricsRes.value.data.data || metricsRes.value.data);
+        const raw = metricsRes.value.data.data || metricsRes.value.data;
+        setDashData(raw);
       }
       if (cashflowRes.status === 'fulfilled') {
         setCashflow(cashflowRes.value.data.data || cashflowRes.value.data || []);
@@ -87,26 +113,38 @@ export default function Dashboard() {
     }
   };
 
+  // Extrair valores das métricas de forma segura
+  const cashBalance = extractValue(dashData?.cashBalance);
+  const cashBalanceChange = extractChange(dashData?.cashBalance);
+  const burnRate = extractValue(dashData?.burnRate);
+  const burnRateChange = extractChange(dashData?.burnRate);
+  const runway = extractValue(dashData?.runway);
+  const runwayChange = extractChange(dashData?.runway);
+  const growth = extractValue(dashData?.growth);
+  const growthChange = extractChange(dashData?.growth);
+  const transactionCount = dashData?.transactionCount || 0;
+  const totalIncome = Math.max(cashBalance, 0); // Aproximação para DRE
+  const totalExpenses = burnRate > 0 ? burnRate : 0;
+
   // Dados do gráfico com projeção
   const chartData = useMemo(() => {
     if (!cashflow.length) {
-      // Dados mock se não houver dados reais
+      // Sem dados — mostrar gráfico vazio com meses
       const now = new Date();
       return Array.from({ length: 12 }, (_, i) => {
         const date = new Date(now.getFullYear(), now.getMonth() - 6 + i, 1);
-        const isPast = i < 6;
         return {
           month: getMonthLabel(date.getMonth()),
-          receitas: isPast ? 80000 + Math.random() * 40000 : 90000 + Math.random() * 30000,
-          despesas: isPast ? -(60000 + Math.random() * 20000) : -(65000 + Math.random() * 15000),
-          isProjection: !isPast,
+          receitas: 0,
+          despesas: 0,
+          isProjection: i >= 6,
         };
       });
     }
     return cashflow.map((c, i) => ({
       month: c.month,
-      receitas: c.income,
-      despesas: -Math.abs(c.expenses),
+      receitas: c.income || 0,
+      despesas: -Math.abs(c.expense || c.expenses || 0),
       isProjection: c.isProjection || i >= cashflow.length - 4,
     }));
   }, [cashflow]);
@@ -126,8 +164,8 @@ export default function Dashboard() {
             <div className="flex-1">
               <p className="text-sm font-medium text-amber-800">Alertas Financeiros</p>
               <p className="text-xs text-amber-600 mt-1">
-                {metrics?.transactionCount
-                  ? `${metrics.transactionCount} transações registradas. Fluxo de caixa líquido: ${formatCurrency(metrics.netCashflow || 0)}`
+                {transactionCount > 0
+                  ? `${transactionCount} transações registradas. Saldo: ${formatCurrency(cashBalance)}`
                   : 'Nenhuma transação registrada ainda. Importe seu extrato CSV para começar.'}
               </p>
             </div>
@@ -147,29 +185,32 @@ export default function Dashboard() {
         {/* Metrics */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
-            title="Receita Total"
-            value={metrics?.totalIncome || 0}
+            title="Saldo de Caixa"
+            value={cashBalance}
             icon={DollarSign}
-            change={8.2}
-            subtitle="Últimos 12 meses"
+            change={cashBalanceChange}
+            subtitle="Últimos 6 meses"
           />
           <MetricCard
-            title="Despesas Totais"
-            value={metrics?.totalExpenses || 0}
+            title="Burn Rate"
+            value={burnRate}
             icon={TrendingDown}
-            change={-3.1}
-            subtitle="Últimos 12 meses"
+            change={burnRateChange}
+            subtitle="Despesas - Receitas (mês)"
           />
           <MetricCard
             title="Fluxo de Caixa Líquido"
-            value={metrics?.netCashflow || 0}
+            value={growth}
             icon={Wallet}
-            change={12.5}
+            change={growthChange}
+            format="percent"
+            subtitle="Crescimento mensal"
           />
           <MetricCard
             title="Runway"
-            value={metrics?.runway || 0}
+            value={runway}
             icon={Calendar}
+            change={runwayChange}
             format="days"
             subtitle="Meses de operação restantes"
           />
@@ -239,40 +280,42 @@ export default function Dashboard() {
         {/* DRE Summary */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Resumo DRE</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 px-4 text-slate-500 font-medium">Categoria</th>
-                  <th className="text-right py-3 px-4 text-slate-500 font-medium">Valor</th>
-                  <th className="text-right py-3 px-4 text-slate-500 font-medium">% Receita</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-slate-100">
-                  <td className="py-3 px-4 font-semibold text-slate-900">Receita Bruta</td>
-                  <td className="py-3 px-4 text-right font-semibold text-emerald-600">{formatCurrency(metrics?.totalIncome || 0)}</td>
-                  <td className="py-3 px-4 text-right text-slate-500">100%</td>
-                </tr>
-                <tr className="border-b border-slate-100">
-                  <td className="py-3 px-4 text-slate-700">(-) Despesas Operacionais</td>
-                  <td className="py-3 px-4 text-right text-red-600">{formatCurrency(-(metrics?.totalExpenses || 0))}</td>
-                  <td className="py-3 px-4 text-right text-slate-500">
-                    {metrics?.totalIncome ? `${((metrics.totalExpenses / metrics.totalIncome) * 100).toFixed(1)}%` : '0%'}
-                  </td>
-                </tr>
-                <tr className="bg-blue-50">
-                  <td className="py-3 px-4 font-bold text-slate-900">Resultado Líquido</td>
-                  <td className={`py-3 px-4 text-right font-bold ${(metrics?.netCashflow || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {formatCurrency(metrics?.netCashflow || 0)}
-                  </td>
-                  <td className="py-3 px-4 text-right font-medium text-slate-700">
-                    {metrics?.totalIncome ? `${((metrics.netCashflow! / metrics.totalIncome) * 100).toFixed(1)}%` : '0%'}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          {transactionCount === 0 ? (
+            <div className="text-center py-8">
+              <Info className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-sm text-slate-500">Nenhuma transação registrada</p>
+              <p className="text-xs text-slate-400 mt-1">Importe um CSV para ver o DRE</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left py-3 px-4 text-slate-500 font-medium">Categoria</th>
+                    <th className="text-right py-3 px-4 text-slate-500 font-medium">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-3 px-4 font-semibold text-slate-900">Saldo de Caixa</td>
+                    <td className={`py-3 px-4 text-right font-semibold ${cashBalance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {formatCurrency(cashBalance)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-3 px-4 text-slate-700">Burn Rate (mensal)</td>
+                    <td className="py-3 px-4 text-right text-red-600">{formatCurrency(burnRate)}</td>
+                  </tr>
+                  <tr className="bg-blue-50">
+                    <td className="py-3 px-4 font-bold text-slate-900">Runway</td>
+                    <td className="py-3 px-4 text-right font-bold text-slate-900">
+                      {runway > 90 ? '∞ (sustentável)' : `${runway.toFixed(1)} meses`}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 

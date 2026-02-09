@@ -10,7 +10,7 @@ interface User {
     id: string;
     name: string;
     code: string;
-    cnpj: string;
+    cnpj?: string;
     sector: string;
   };
 }
@@ -42,7 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) {
       authApi.me()
         .then((res) => {
-          setUser(res.data.data);
+          const data = res.data.data || res.data;
+          // getMe retorna user com company incluída
+          setUser(data);
         })
         .catch(() => {
           localStorage.removeItem('lume_token');
@@ -56,11 +58,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token]);
 
   const login = async (username: string, password: string, companyCode: string) => {
-    const res = await authApi.login({ username, password, companyCode });
-    const { token: newToken, user: userData } = res.data.data;
+    // Garantir que companyCode está em uppercase (o backend é case-sensitive)
+    const res = await authApi.login({ username, password, companyCode: companyCode.toUpperCase().trim() });
+    const data = res.data.data || res.data;
+    // Backend retorna { token, user: {...}, company: {...} } separados
+    const { token: newToken, user: userData, company } = data;
     localStorage.setItem('lume_token', newToken);
     setToken(newToken);
-    setUser(userData);
+    // Montar o user com company embutida
+    setUser({ ...userData, company });
   };
 
   const register = async (data: {
@@ -71,9 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     company: { name: string; cnpj: string; sector: string };
   }) => {
     const res = await authApi.register(data);
-    const { token: newToken, user: userData, company } = res.data.data;
+    const resData = res.data.data || res.data;
+    // Backend retorna { token, user: {...}, company: {...} } separados
+    const { token: newToken, user: userData, company } = resData;
     localStorage.setItem('lume_token', newToken);
     setToken(newToken);
+    // Montar o user com company embutida
     setUser({ ...userData, company });
   };
 
