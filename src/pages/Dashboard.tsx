@@ -2,16 +2,14 @@ import { useEffect, useState, useMemo } from 'react';
 import { financialApi, scenariosApi } from '@/lib/api';
 import { formatCurrency, getMonthLabel } from '@/lib/utils';
 import MetricCard from '@/components/MetricCard';
+import CashflowChart from '@/components/CashflowChart';
+import type { CashflowDataPoint, Scenario as ChartScenario } from '@/components/CashflowChart';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import {
-  DollarSign, TrendingUp, TrendingDown, Wallet, Calendar,
-  ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Plus, Trash2,
+  DollarSign, TrendingDown, Wallet, Calendar,
+  ChevronDown, ToggleLeft, ToggleRight,
   AlertTriangle, X, Info
 } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ReferenceLine, Cell, Legend, LineChart, Line
-} from 'recharts';
 
 // O backend retorna métricas como objetos { value, change }
 interface MetricValue {
@@ -27,13 +25,12 @@ interface DashboardData {
   transactionCount: number;
 }
 
-interface CashflowData {
+interface CashflowRaw {
   month: string;
   income: number;
-  expense: number;  // backend retorna 'expense' (sem s)
-  expenses?: number; // compatibilidade
+  expense: number;
+  expenses?: number;
   net: number;
-  isProjection?: boolean;
 }
 
 interface Scenario {
@@ -58,16 +55,23 @@ function extractChange(metric: any): number | undefined {
   if (metric === null || metric === undefined) return undefined;
   if (typeof metric === 'object' && metric.change !== undefined) {
     const change = Number(metric.change);
-    // Se change é 0 ou NaN, não mostrar variação
     if (isNaN(change) || change === 0) return undefined;
     return change;
   }
   return undefined;
 }
 
+function ChevronRight(props: any) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="m9 18 6-6-6-6"/>
+    </svg>
+  );
+}
+
 export default function Dashboard() {
   const [dashData, setDashData] = useState<DashboardData | null>(null);
-  const [cashflow, setCashflow] = useState<CashflowData[]>([]);
+  const [cashflowRaw, setCashflowRaw] = useState<CashflowRaw[]>([]);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scenariosOpen, setScenariosOpen] = useState(true);
@@ -92,7 +96,7 @@ export default function Dashboard() {
         setDashData(raw);
       }
       if (cashflowRes.status === 'fulfilled') {
-        setCashflow(cashflowRes.value.data.data || cashflowRes.value.data || []);
+        setCashflowRaw(cashflowRes.value.data.data || cashflowRes.value.data || []);
       }
       if (scenariosRes.status === 'fulfilled') {
         setScenarios(scenariosRes.value.data.data || scenariosRes.value.data || []);
@@ -123,33 +127,33 @@ export default function Dashboard() {
   const growth = extractValue(dashData?.growth);
   const growthChange = extractChange(dashData?.growth);
   const transactionCount = dashData?.transactionCount || 0;
-  const totalIncome = Math.max(cashBalance, 0); // Aproximação para DRE
-  const totalExpenses = burnRate > 0 ? burnRate : 0;
 
-  // Dados do gráfico com projeção
-  const chartData = useMemo(() => {
-    if (!cashflow.length) {
-      // Sem dados — mostrar gráfico vazio com meses
-      const now = new Date();
-      return Array.from({ length: 12 }, (_, i) => {
-        const date = new Date(now.getFullYear(), now.getMonth() - 6 + i, 1);
-        return {
-          month: getMonthLabel(date.getMonth()),
-          receitas: 0,
-          despesas: 0,
-          isProjection: i >= 6,
-        };
-      });
-    }
-    return cashflow.map((c, i) => ({
+  // Transformar dados do cashflow para o componente CashflowChart
+  const cashflowData: CashflowDataPoint[] = useMemo(() => {
+    return cashflowRaw.map(c => ({
       month: c.month,
-      receitas: c.income || 0,
-      despesas: -Math.abs(c.expense || c.expenses || 0),
-      isProjection: c.isProjection || i >= cashflow.length - 4,
+      income: c.income || 0,
+      expense: Math.abs(c.expense || c.expenses || 0),
+      net: c.net || 0,
     }));
-  }, [cashflow]);
+  }, [cashflowRaw]);
 
-  const activeScenarios = scenarios.filter(s => s.isActive);
+  // Converter cenários para o formato do CashflowChart
+  const chartScenarios: ChartScenario[] = useMemo(() => {
+    return scenarios.map(s => ({
+      id: s.id,
+      name: s.name,
+      type: s.type,
+      isActive: s.isActive,
+      adjustments: s.adjustments || {},
+    }));
+  }, [scenarios]);
+
+  // Determinar mês de corte para forecast (mês atual)
+  const forecastStartMonth = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
 
   if (isLoading) return <LoadingSpinner message="Carregando dashboard..." />;
 
@@ -216,65 +220,29 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Cash Flow Chart */}
+        {/* Cash Flow Chart — Novo gráfico com barras empilhadas e linhas de saldo */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">Fluxo de Caixa</h3>
-              <p className="text-sm text-slate-500">Realizado vs. Projeção</p>
+              <p className="text-sm text-slate-500">Entradas, saídas e saldo acumulado</p>
             </div>
-            {activeScenarios.length > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-full">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                <span className="text-xs font-medium text-blue-700">
-                  {activeScenarios.length} cenário{activeScenarios.length > 1 ? 's' : ''} ativo{activeScenarios.length > 1 ? 's' : ''}
+            {scenarios.filter(s => s.isActive).length > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 rounded-full">
+                <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+                <span className="text-xs font-medium text-purple-700">
+                  {scenarios.filter(s => s.isActive).length} cenário{scenarios.filter(s => s.isActive).length > 1 ? 's' : ''} ativo{scenarios.filter(s => s.isActive).length > 1 ? 's' : ''}
                 </span>
               </div>
             )}
           </div>
 
-          <div className="flex items-center gap-6 mb-4 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-emerald-500 rounded-sm" />
-              <span className="text-slate-600">Receitas (Realizado)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-emerald-300 rounded-sm opacity-50" />
-              <span className="text-slate-600">Receitas (Projeção)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-red-500 rounded-sm" />
-              <span className="text-slate-600">Despesas (Realizado)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-red-300 rounded-sm opacity-50" />
-              <span className="text-slate-600">Despesas (Projeção)</span>
-            </div>
-          </div>
-
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={chartData} barGap={2}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#94a3b8' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip
-                formatter={(value: number) => formatCurrency(Math.abs(value))}
-                labelStyle={{ fontWeight: 600 }}
-                contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
-              />
-              <ReferenceLine y={0} stroke="#cbd5e1" />
-              <Bar dataKey="receitas" name="Receitas" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.isProjection ? '#86efac' : '#10b981'} opacity={entry.isProjection ? 0.5 : 1} />
-                ))}
-              </Bar>
-              <Bar dataKey="despesas" name="Despesas" radius={[0, 0, 4, 4]}>
-                {chartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.isProjection ? '#fca5a5' : '#ef4444'} opacity={entry.isProjection ? 0.5 : 1} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <CashflowChart
+            data={cashflowData}
+            scenarios={chartScenarios}
+            initialBalance={0}
+            forecastStartMonth={forecastStartMonth}
+          />
         </div>
 
         {/* DRE Summary */}
@@ -341,13 +309,13 @@ export default function Dashboard() {
               ) : (
                 scenarios.map((scenario) => (
                   <div key={scenario.id} className={`p-3 rounded-lg border transition-all ${
-                    scenario.isActive ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-slate-50'
+                    scenario.isActive ? 'border-purple-200 bg-purple-50' : 'border-slate-200 bg-slate-50'
                   }`}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium text-slate-900 truncate">{scenario.name}</span>
                       <button onClick={() => toggleScenario(scenario.id)} className="flex-shrink-0">
                         {scenario.isActive
-                          ? <ToggleRight className="w-6 h-6 text-blue-600" />
+                          ? <ToggleRight className="w-6 h-6 text-purple-600" />
                           : <ToggleLeft className="w-6 h-6 text-slate-400" />}
                       </button>
                     </div>
@@ -373,13 +341,5 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
-  );
-}
-
-function ChevronRight(props: any) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="m9 18 6-6-6-6"/>
-    </svg>
   );
 }
