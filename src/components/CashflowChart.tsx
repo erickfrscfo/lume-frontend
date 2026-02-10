@@ -12,6 +12,7 @@ import {
   ReferenceArea,
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
+import { ExplainButton } from '@/components/ExplainModal';
 
 // ============================================
 // TYPES
@@ -263,19 +264,11 @@ export default function CashflowChart({
           <p className="text-sm text-slate-400 mt-0.5">Visualização de entradas, saídas e saldo de caixa</p>
         </div>
         <div className="flex items-center gap-3">
-          {onExplain && (
-            <button
-              onClick={onExplain}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-violet-300 text-violet-600 text-sm font-medium hover:bg-violet-50 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 3l1.5 3.5L17 8l-3.5 1.5L12 13l-1.5-3.5L7 8l3.5-1.5L12 3z" />
-                <path d="M5 16l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2z" />
-                <path d="M18 14l.7 1.3 1.3.7-1.3.7-.7 1.3-.7-1.3-1.3-.7 1.3-.7.7-1.3z" />
-              </svg>
-              Explica pra mim
-            </button>
-          )}
+          <ExplainButton
+            metric="Fluxo de Caixa"
+            value={`Entradas: ${formatCurrency(chartData.reduce((s: number, d: any) => s + (d.income || 0), 0))} / Saídas: ${formatCurrency(chartData.reduce((s: number, d: any) => s + (d.expense || 0), 0))}`}
+            context={`Dados do gráfico de Fluxo de Caixa (${chartData.length} meses):\n${chartData.map((d: any) => `${d.month}: Entrada R$ ${(d.income||0).toLocaleString('pt-BR')} | Saída R$ ${(d.expense||0).toLocaleString('pt-BR')} | Líquido R$ ${(d.net||0).toLocaleString('pt-BR')}`).join('\n')}`}
+          />
           {hasScenario && (
             <div className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-violet-300 text-violet-600 text-sm font-medium bg-violet-50">
               Cenário ativo

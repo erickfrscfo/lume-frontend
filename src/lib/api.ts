@@ -91,8 +91,8 @@ export const uploadApi = {
 export const aiApi = {
   chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>) =>
     api.post('/ai/chat', { message, history }),
-  explain: (metric: string, value: string) =>
-    api.post('/ai/explain', { metric, value }),
+  explain: (metric: string, value: string, context?: string) =>
+    api.post('/ai/explain', { metric, value, context }),
   chatHistory: () => api.get('/ai/chat/history'),
 };
 

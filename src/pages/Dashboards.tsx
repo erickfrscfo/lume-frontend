@@ -10,6 +10,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight,
   ChevronDown, ChevronUp, ChevronRight, Filter, Info
 } from 'lucide-react';
+import { ExplainButton } from '@/components/ExplainModal';
 
 // ============================================
 // TYPES
@@ -609,7 +610,17 @@ export default function Dashboards() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Revenue Trend */}
           <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h3 className="text-sm font-semibold text-slate-900 mb-4">Tendência de Receita</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-slate-900">Tendência de Receita</h3>
+              {revenueChartData.length > 0 && (
+                <ExplainButton
+                  metric="Tendência de Receita"
+                  value={`Último mês: ${formatCurrency(revenueChartData[revenueChartData.length - 1]?.revenue || 0)}`}
+                  context={`Evolução da receita mensal:\n${revenueChartData.map(d => `${d.month}: R$ ${d.revenue.toLocaleString('pt-BR')}`).join('\n')}`}
+                  variant="icon"
+                />
+              )}
+            </div>
             {revenueChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={250}>
                 <AreaChart data={revenueChartData}>
@@ -637,7 +648,17 @@ export default function Dashboards() {
 
           {/* Expenses by Category */}
           <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h3 className="text-sm font-semibold text-slate-900 mb-4">Despesas por Categoria</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-slate-900">Despesas por Categoria</h3>
+              {pieData.length > 0 && (
+                <ExplainButton
+                  metric="Despesas por Categoria"
+                  value={`Total: ${formatCurrency(pieData.reduce((s, d) => s + d.value, 0))}`}
+                  context={`Distribuição de despesas por categoria:\n${pieData.map(d => `- ${d.name}: R$ ${d.value.toLocaleString('pt-BR')}`).join('\n')}`}
+                  variant="icon"
+                />
+              )}
+            </div>
             {pieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
@@ -670,7 +691,17 @@ export default function Dashboards() {
 
           {/* Margins */}
           <div className="bg-white rounded-xl border border-slate-200 p-6 lg:col-span-2">
-            <h3 className="text-sm font-semibold text-slate-900 mb-4">Margens</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-slate-900">Margens</h3>
+              {marginsChartData.length > 0 && (
+                <ExplainButton
+                  metric="Margens Financeiras"
+                  value={`Margem Bruta: ${marginsChartData[marginsChartData.length - 1]?.margemBruta.toFixed(1)}% | EBITDA: ${marginsChartData[marginsChartData.length - 1]?.ebitda.toFixed(1)}%`}
+                  context={`Evolução das margens:\n${marginsChartData.map(d => `${d.month}: Margem Bruta ${d.margemBruta.toFixed(1)}% | EBITDA ${d.ebitda.toFixed(1)}% | Lucro Líquido ${d.lucroLiquido.toFixed(1)}%`).join('\n')}`}
+                  variant="icon"
+                />
+              )}
+            </div>
             {marginsChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={marginsChartData}>
@@ -700,9 +731,19 @@ export default function Dashboards() {
       {/* ========== DRE EXPANSÍVEL ========== */}
       {activeView === 'dre' && (
         <div className="bg-white rounded-xl border border-slate-200">
-          <div className="p-6 border-b border-slate-100">
-            <h3 className="text-lg font-semibold text-slate-900">Demonstração de Resultado do Exercício</h3>
-            <p className="text-xs text-slate-400 mt-1">Clique nas linhas principais para expandir o detalhamento por categoria</p>
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Demonstração de Resultado do Exercício</h3>
+              <p className="text-xs text-slate-400 mt-1">Clique nas linhas principais para expandir o detalhamento por categoria</p>
+            </div>
+            {dreData.length > 0 && (
+              <ExplainButton
+                metric="DRE Completo"
+                value={`Receita: ${formatCurrency(dreData[dreData.length - 1]?.revenue || 0)} | EBITDA: ${formatCurrency(dreData[dreData.length - 1]?.ebitda || 0)} | Lucro: ${formatCurrency(dreData[dreData.length - 1]?.netIncome || 0)}`}
+                context={`DRE mês a mês:\n${dreData.map(d => `${d.month}: Receita ${formatCurrency(d.revenue)} | Custos ${formatCurrency(d.cogs)} | Lucro Bruto ${formatCurrency(d.grossProfit)} | Opex ${formatCurrency(d.opex)} | EBITDA ${formatCurrency(d.ebitda)} | Lucro Líquido ${formatCurrency(d.netIncome)}`).join('\n')}`}
+                variant="small"
+              />
+            )}
           </div>
           <DRETable dreData={dreData} rawDreData={rawDreData} monthKeys={monthKeys} />
         </div>

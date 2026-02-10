@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { financialApi, scenariosApi, aiApi } from '@/lib/api';
 import { formatCurrency, getMonthLabel } from '@/lib/utils';
 import MetricCard from '@/components/MetricCard';
+import { ExplainButton } from '@/components/ExplainModal';
 import CashflowChart from '@/components/CashflowChart';
 import type { CashflowDataPoint, Scenario as ChartScenario } from '@/components/CashflowChart';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -487,7 +488,7 @@ Pedido do usuário: ${userMsg}`;
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, []);
 
-  const handleExplain = () => { alert('Em breve: a IA vai explicar o gráfico para você!'); };
+  // ExplainButton agora está integrado diretamente nos componentes
 
   if (isLoading) return <LoadingSpinner message="Carregando dashboard..." />;
 
@@ -522,10 +523,20 @@ Pedido do usuário: ${userMsg}`;
           <MetricCard title="Runway" value={runway} icon={Calendar} change={runwayChange} format="days" subtitle="Meses de operação restantes" />
         </div>
 
-        <CashflowChart data={cashflowData} scenarios={chartScenarios} initialBalance={0} forecastStartMonth={forecastStartMonth} onExplain={handleExplain} />
+        <CashflowChart data={cashflowData} scenarios={chartScenarios} initialBalance={0} forecastStartMonth={forecastStartMonth} />
 
         <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Resumo DRE</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-slate-900">Resumo DRE</h3>
+            {transactionCount > 0 && (
+              <ExplainButton
+                metric="Resumo DRE"
+                value={`Saldo: ${formatCurrency(cashBalance)} | Burn Rate: ${formatCurrency(burnRate)} | Runway: ${runway > 90 ? 'Sustentável' : runway.toFixed(1) + ' meses'}`}
+                context={`Dados do Resumo DRE:\n- Saldo de Caixa: ${formatCurrency(cashBalance)}\n- Burn Rate Mensal: ${formatCurrency(burnRate)}\n- Runway: ${runway > 90 ? 'Indefinido (sustentável)' : runway.toFixed(1) + ' meses'}\n- Total de Transações: ${transactionCount}`}
+                variant="small"
+              />
+            )}
+          </div>
           {transactionCount === 0 ? (
             <div className="text-center py-8">
               <Info className="w-8 h-8 text-slate-300 mx-auto mb-2" />
