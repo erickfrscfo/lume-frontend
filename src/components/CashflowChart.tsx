@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import {
   ComposedChart,
   Bar,
@@ -11,7 +11,6 @@ import {
   ReferenceLine,
   ReferenceArea,
   Cell,
-  Legend,
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
 
@@ -45,7 +44,7 @@ interface CashflowChartProps {
   data: CashflowDataPoint[];
   scenarios?: Scenario[];
   initialBalance?: number;
-  forecastStartMonth?: string; // Mês a partir do qual é projeção (ex: "2026-02")
+  forecastStartMonth?: string;
 }
 
 // ============================================
@@ -54,8 +53,11 @@ interface CashflowChartProps {
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 function formatMonthLabel(monthKey: string): string {
-  const [year, m] = monthKey.split('-');
-  return `${MONTH_NAMES[parseInt(m) - 1]}/${year.slice(2)}`;
+  const parts = monthKey.split('-');
+  if (parts.length < 2) return monthKey;
+  const [year, m] = parts;
+  const idx = parseInt(m) - 1;
+  return `${MONTH_NAMES[idx] || m}/${year.slice(2)}`;
 }
 
 function formatAxisValue(value: number): string {
@@ -68,98 +70,76 @@ function formatAxisValue(value: number): string {
 // ============================================
 // CUSTOM TOOLTIP
 // ============================================
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload }: any) {
   if (!active || !payload || payload.length === 0) return null;
-
   const data = payload[0]?.payload;
   if (!data) return null;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs min-w-[180px]">
-      <p className="font-semibold text-slate-900 mb-2 text-sm">{data.monthLabel}</p>
+    <div className="bg-white border border-slate-200 rounded-lg shadow-xl p-3.5 text-xs min-w-[200px]">
+      <p className="font-semibold text-slate-900 mb-2.5 text-sm border-b border-slate-100 pb-2">
+        {data.monthLabel}
+        {data.isForecast && (
+          <span className="ml-2 text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+            Projeção
+          </span>
+        )}
+      </p>
       <div className="space-y-1.5">
         <div className="flex justify-between items-center">
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" />
+            <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#10b981' }} />
             Entradas
           </span>
-          <span className="font-medium text-emerald-600">{formatCurrency(data.inflow)}</span>
+          <span className="font-semibold text-emerald-600">{formatCurrency(data.rawIncome)}</span>
         </div>
         <div className="flex justify-between items-center">
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block" />
+            <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#f87171' }} />
             Saídas
           </span>
-          <span className="font-medium text-red-500">{formatCurrency(Math.abs(data.outflow))}</span>
+          <span className="font-semibold text-red-500">{formatCurrency(data.rawExpense)}</span>
         </div>
         <div className="border-t border-slate-100 pt-1.5 flex justify-between items-center">
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-0.5 bg-slate-800 inline-block" />
+            <span className="w-5 h-[2px] inline-block" style={{ backgroundColor: '#1e293b' }} />
             Saldo Base
           </span>
-          <span className="font-semibold text-slate-900">{formatCurrency(data.baselineBalance)}</span>
+          <span className="font-bold text-slate-900">{formatCurrency(data.baselineBalance)}</span>
         </div>
         {data.hasScenario && (
           <>
-            {(data.scenarioInflow !== 0 || data.scenarioOutflow !== 0) && (
-              <>
-                {data.scenarioInflow > 0 && (
+            {(data.rawScenarioIncome > 0 || data.rawScenarioExpense > 0) && (
+              <div className="border-t border-slate-100 pt-1.5 space-y-1">
+                {data.rawScenarioIncome > 0 && (
                   <div className="flex justify-between items-center">
                     <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-purple-400 inline-block" />
-                      Cenário +
+                      <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#a78bfa' }} />
+                      Cenário (+)
                     </span>
-                    <span className="font-medium text-purple-600">{formatCurrency(data.scenarioInflow)}</span>
+                    <span className="font-medium text-purple-600">{formatCurrency(data.rawScenarioIncome)}</span>
                   </div>
                 )}
-                {data.scenarioOutflow < 0 && (
+                {data.rawScenarioExpense > 0 && (
                   <div className="flex justify-between items-center">
                     <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-purple-300 inline-block" />
-                      Cenário -
+                      <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: '#c4b5fd' }} />
+                      Cenário (-)
                     </span>
-                    <span className="font-medium text-purple-500">{formatCurrency(Math.abs(data.scenarioOutflow))}</span>
+                    <span className="font-medium text-purple-500">{formatCurrency(data.rawScenarioExpense)}</span>
                   </div>
                 )}
-              </>
+              </div>
             )}
             <div className="flex justify-between items-center">
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-0.5 bg-purple-600 inline-block" />
+                <span className="w-5 h-[2px] inline-block" style={{ backgroundColor: '#7c3aed' }} />
                 Saldo Cenário
               </span>
-              <span className="font-semibold text-purple-700">{formatCurrency(data.scenarioBalance)}</span>
+              <span className="font-bold text-purple-700">{formatCurrency(data.scenarioBalance)}</span>
             </div>
           </>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ============================================
-// CUSTOM LEGEND
-// ============================================
-function CustomLegend({ hasScenario, scenarioName }: { hasScenario: boolean; scenarioName: string }) {
-  return (
-    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-4 text-sm">
-      <div className="flex items-center gap-2">
-        <div className="w-4 h-0.5 bg-slate-800 rounded" />
-        <span className="text-slate-600">Saldo de caixa base</span>
-      </div>
-      {hasScenario && (
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-0.5 bg-purple-600 rounded" />
-          <span className="text-slate-600">{scenarioName}</span>
-        </div>
-      )}
-      <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded-sm bg-emerald-500" />
-        <span className="text-slate-600">Entradas</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded-sm bg-red-400" />
-        <span className="text-slate-600">Saídas</span>
       </div>
     </div>
   );
@@ -174,7 +154,6 @@ export default function CashflowChart({
   initialBalance = 0,
   forecastStartMonth,
 }: CashflowChartProps) {
-  // Cenários ativos combinados
   const activeScenarios = useMemo(
     () => scenarios.filter(s => s.isActive),
     [scenarios]
@@ -186,15 +165,14 @@ export default function CashflowChart({
       ? `${activeScenarios.length} cenários`
       : '';
 
-  // Determinar mês de corte actuals/forecast
   const forecastStart = useMemo(() => {
     if (forecastStartMonth) return forecastStartMonth;
-    // Se não especificado, usar mês atual como corte
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, [forecastStartMonth]);
 
   // Transformar dados para o gráfico
+  // CHAVE: inflow (positivo) e outflow (negativo) no MESMO stackId = coluna única bidirecional
   const chartData = useMemo(() => {
     let baselineRunning = initialBalance;
     let scenarioRunning = initialBalance;
@@ -203,14 +181,22 @@ export default function CashflowChart({
       const isForecast = point.month >= forecastStart;
       const monthLabel = formatMonthLabel(point.month);
 
-      // Baseline
+      // Valores brutos para tooltip
+      const rawIncome = point.income;
+      const rawExpense = point.expense;
+
+      // Barras: inflow positivo, outflow negativo → mesma coluna
       const inflow = point.income;
-      const outflow = -point.expense; // Negativo para ficar abaixo do zero
+      const outflow = -point.expense;
+
+      // Saldo acumulado baseline
       baselineRunning += point.net;
 
       // Cenário: calcular ajustes adicionais
-      let scenarioInflow = 0;
-      let scenarioOutflow = 0;
+      let scenarioInflowVal = 0;
+      let scenarioOutflowVal = 0;
+      let rawScenarioIncome = 0;
+      let rawScenarioExpense = 0;
 
       activeScenarios.forEach(s => {
         const adj = s.adjustments;
@@ -218,47 +204,78 @@ export default function CashflowChart({
         const end = adj.endMonth || '9999-12';
 
         if (point.month >= start && point.month <= end) {
-          if (adj.monthlyRevenue) scenarioInflow += adj.monthlyRevenue;
-          if (adj.monthlyExpense) scenarioOutflow -= adj.monthlyExpense;
+          if (adj.monthlyRevenue) {
+            scenarioInflowVal += adj.monthlyRevenue;
+            rawScenarioIncome += adj.monthlyRevenue;
+          }
+          if (adj.monthlyExpense) {
+            scenarioOutflowVal -= adj.monthlyExpense;
+            rawScenarioExpense += adj.monthlyExpense;
+          }
         }
 
-        // One-time no mês de início
         if (point.month === start) {
-          if (adj.oneTimeRevenue) scenarioInflow += adj.oneTimeRevenue;
-          if (adj.oneTimeExpense) scenarioOutflow -= adj.oneTimeExpense;
+          if (adj.oneTimeRevenue) {
+            scenarioInflowVal += adj.oneTimeRevenue;
+            rawScenarioIncome += adj.oneTimeRevenue;
+          }
+          if (adj.oneTimeExpense) {
+            scenarioOutflowVal -= adj.oneTimeExpense;
+            rawScenarioExpense += adj.oneTimeExpense;
+          }
         }
       });
 
-      scenarioRunning += point.net + scenarioInflow + scenarioOutflow;
+      scenarioRunning += point.net + scenarioInflowVal + scenarioOutflowVal;
 
       return {
         month: point.month,
         monthLabel,
         isForecast,
-        // Barras baseline
-        inflow,
-        outflow,
-        // Barras cenário (empilhadas sobre baseline)
-        scenarioInflow: hasScenario ? scenarioInflow : 0,
-        scenarioOutflow: hasScenario ? scenarioOutflow : 0,
+        // Barras baseline (mesmo stackId para coluna única)
+        inflow,          // positivo → acima do zero (verde)
+        outflow,         // negativo → abaixo do zero (vermelho)
+        // Barras cenário (mesmo stackId, empilhadas)
+        scenarioInflow: hasScenario ? scenarioInflowVal : 0,    // positivo → roxo acima
+        scenarioOutflow: hasScenario ? scenarioOutflowVal : 0,  // negativo → roxo abaixo
         // Linhas de saldo
         baselineBalance: baselineRunning,
         scenarioBalance: hasScenario ? scenarioRunning : undefined,
-        // Flag
+        // Dados brutos para tooltip
+        rawIncome,
+        rawExpense,
+        rawScenarioIncome,
+        rawScenarioExpense,
         hasScenario,
       };
     });
   }, [data, activeScenarios, initialBalance, forecastStart, hasScenario]);
 
-  // Encontrar índice do mês de transição para ReferenceArea
+  // Índice do primeiro mês de forecast
   const forecastIndex = useMemo(() => {
     const idx = chartData.findIndex(d => d.isForecast);
     return idx >= 0 ? idx : -1;
   }, [chartData]);
 
-  // Encontrar mês anterior ao forecast para a zona de transição
   const transitionMonth = forecastIndex > 0 ? chartData[forecastIndex - 1].month : null;
   const transitionMonthForecast = forecastIndex >= 0 ? chartData[forecastIndex].month : null;
+
+  // Cores dinâmicas por barra
+  const getInflowColor = useCallback((isForecast: boolean) => {
+    return isForecast ? 'rgba(16, 185, 129, 0.45)' : 'rgba(16, 185, 129, 0.85)';
+  }, []);
+
+  const getOutflowColor = useCallback((isForecast: boolean) => {
+    return isForecast ? 'rgba(248, 113, 113, 0.4)' : 'rgba(248, 113, 113, 0.75)';
+  }, []);
+
+  const getScenarioInflowColor = useCallback((isForecast: boolean) => {
+    return isForecast ? 'rgba(167, 139, 250, 0.5)' : 'rgba(167, 139, 250, 0.8)';
+  }, []);
+
+  const getScenarioOutflowColor = useCallback((isForecast: boolean) => {
+    return isForecast ? 'rgba(196, 181, 253, 0.45)' : 'rgba(196, 181, 253, 0.7)';
+  }, []);
 
   if (data.length === 0) {
     return (
@@ -276,21 +293,21 @@ export default function CashflowChart({
     <div>
       {/* Labels Actuals / Forecasts */}
       {forecastIndex >= 0 && (
-        <div className="flex justify-center gap-8 mb-2">
-          <div className="flex items-center gap-1 text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded">
+        <div className="flex justify-center gap-6 mb-3">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded">
             <span>&larr;</span> Realizado
           </div>
-          <div className="flex items-center gap-1 text-xs font-semibold text-slate-500 bg-slate-800 text-white px-3 py-1 rounded">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-white bg-slate-800 px-3 py-1 rounded">
             Projeção <span>&rarr;</span>
           </div>
         </div>
       )}
 
-      <ResponsiveContainer width="100%" height={400}>
+      <ResponsiveContainer width="100%" height={420}>
         <ComposedChart
           data={chartData}
-          margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
-          barCategoryGap="20%"
+          margin={{ top: 10, right: 15, left: 15, bottom: 5 }}
+          barCategoryGap="25%"
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
 
@@ -299,26 +316,15 @@ export default function CashflowChart({
             <ReferenceArea
               x1={transitionMonth}
               x2={transitionMonthForecast}
-              fill="#f8f5ff"
-              fillOpacity={0.8}
-              stroke="none"
-            />
-          )}
-
-          {/* Zona de forecast (leve sombreamento) */}
-          {forecastIndex >= 0 && chartData.length > 0 && (
-            <ReferenceArea
-              x1={chartData[forecastIndex].month}
-              x2={chartData[chartData.length - 1].month}
-              fill="#faf5ff"
-              fillOpacity={0.3}
+              fill="#f5f3ff"
+              fillOpacity={0.7}
               stroke="none"
             />
           )}
 
           <XAxis
             dataKey="month"
-            tick={{ fontSize: 11, fill: '#94a3b8' }}
+            tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
             tickFormatter={formatMonthLabel}
             axisLine={{ stroke: '#e2e8f0' }}
             tickLine={false}
@@ -331,7 +337,7 @@ export default function CashflowChart({
             tickFormatter={formatAxisValue}
             axisLine={false}
             tickLine={false}
-            width={70}
+            width={72}
           />
 
           {/* Eixo Y direito (linhas de saldo) */}
@@ -342,87 +348,83 @@ export default function CashflowChart({
             tickFormatter={formatAxisValue}
             axisLine={false}
             tickLine={false}
-            width={70}
+            width={72}
           />
 
           {/* Linha zero */}
-          <ReferenceLine y={0} yAxisId="bars" stroke="#cbd5e1" strokeWidth={1} />
+          <ReferenceLine y={0} yAxisId="bars" stroke="#94a3b8" strokeWidth={1} />
 
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
 
-          {/* ===== BARRAS ===== */}
+          {/* ===== BARRAS — TODAS NO MESMO stackId PARA COLUNA ÚNICA ===== */}
 
-          {/* Inflow (verde, acima do zero) */}
+          {/* Inflow baseline (verde, positivo → acima do zero) */}
           <Bar
             yAxisId="bars"
             dataKey="inflow"
-            stackId="positive"
-            fill="#10b981"
-            radius={[2, 2, 0, 0]}
-            maxBarSize={40}
+            stackId="column"
+            maxBarSize={48}
+            isAnimationActive={true}
           >
             {chartData.map((entry, index) => (
               <Cell
                 key={`inflow-${index}`}
-                fill="#10b981"
-                fillOpacity={entry.isForecast ? 0.5 : 0.85}
+                fill={getInflowColor(entry.isForecast)}
+                radius={hasScenario && entry.scenarioInflow > 0 ? 0 : [3, 3, 0, 0] as any}
               />
             ))}
           </Bar>
 
-          {/* Cenário Inflow (roxo, empilhado sobre verde) */}
+          {/* Cenário Inflow (roxo, positivo → empilhado acima do verde) */}
           {hasScenario && (
             <Bar
               yAxisId="bars"
               dataKey="scenarioInflow"
-              stackId="positive"
-              fill="#a78bfa"
-              radius={[2, 2, 0, 0]}
-              maxBarSize={40}
+              stackId="column"
+              maxBarSize={48}
+              isAnimationActive={true}
             >
               {chartData.map((entry, index) => (
                 <Cell
                   key={`sinflow-${index}`}
-                  fill="#a78bfa"
-                  fillOpacity={entry.isForecast ? 0.6 : 0.8}
+                  fill={getScenarioInflowColor(entry.isForecast)}
+                  radius={[3, 3, 0, 0] as any}
                 />
               ))}
             </Bar>
           )}
 
-          {/* Outflow (vermelho, abaixo do zero) */}
+          {/* Outflow baseline (vermelho, negativo → abaixo do zero) */}
           <Bar
             yAxisId="bars"
             dataKey="outflow"
-            stackId="negative"
-            fill="#f87171"
-            radius={[0, 0, 2, 2]}
-            maxBarSize={40}
+            stackId="column"
+            maxBarSize={48}
+            isAnimationActive={true}
           >
             {chartData.map((entry, index) => (
               <Cell
                 key={`outflow-${index}`}
-                fill="#f87171"
-                fillOpacity={entry.isForecast ? 0.4 : 0.7}
+                fill={getOutflowColor(entry.isForecast)}
+                radius={hasScenario && entry.scenarioOutflow < 0 ? 0 : [0, 0, 3, 3] as any}
               />
             ))}
           </Bar>
 
-          {/* Cenário Outflow (roxo claro, empilhado abaixo) */}
+          {/* Cenário Outflow (roxo claro, negativo → empilhado abaixo do vermelho) */}
           {hasScenario && (
             <Bar
               yAxisId="bars"
               dataKey="scenarioOutflow"
-              stackId="negative"
-              fill="#c4b5fd"
-              radius={[0, 0, 2, 2]}
-              maxBarSize={40}
+              stackId="column"
+              maxBarSize={48}
+              isAnimationActive={true}
             >
               {chartData.map((entry, index) => (
                 <Cell
                   key={`soutflow-${index}`}
-                  fill="#c4b5fd"
-                  fillOpacity={entry.isForecast ? 0.5 : 0.7}
+                  fill={getScenarioOutflowColor(entry.isForecast)}
+                  radius={[0, 0, 3, 3] as any}
                 />
               ))}
             </Bar>
@@ -430,7 +432,7 @@ export default function CashflowChart({
 
           {/* ===== LINHAS DE SALDO ===== */}
 
-          {/* Baseline cash balance (preta) */}
+          {/* Baseline cash balance (preta sólida) */}
           <Line
             yAxisId="lines"
             type="monotone"
@@ -438,11 +440,11 @@ export default function CashflowChart({
             stroke="#1e293b"
             strokeWidth={2.5}
             dot={false}
-            activeDot={{ r: 4, fill: '#1e293b' }}
+            activeDot={{ r: 5, fill: '#1e293b', stroke: '#fff', strokeWidth: 2 }}
             name="Saldo base"
           />
 
-          {/* Scenario cash balance (roxa) */}
+          {/* Scenario cash balance (roxa sólida) */}
           {hasScenario && (
             <Line
               yAxisId="lines"
@@ -450,17 +452,35 @@ export default function CashflowChart({
               dataKey="scenarioBalance"
               stroke="#7c3aed"
               strokeWidth={2}
-              strokeDasharray="0"
               dot={false}
-              activeDot={{ r: 4, fill: '#7c3aed' }}
+              activeDot={{ r: 5, fill: '#7c3aed', stroke: '#fff', strokeWidth: 2 }}
               name="Cenário"
             />
           )}
         </ComposedChart>
       </ResponsiveContainer>
 
-      {/* Custom Legend */}
-      <CustomLegend hasScenario={hasScenario} scenarioName={scenarioName} />
+      {/* Legenda */}
+      <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-2 mt-4 text-[13px]">
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-[2.5px] bg-slate-800 rounded-full" />
+          <span className="text-slate-600">Saldo de caixa base</span>
+        </div>
+        {hasScenario && (
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-[2.5px] rounded-full" style={{ backgroundColor: '#7c3aed' }} />
+            <span className="text-slate-600">{scenarioName}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <div className="w-3.5 h-3.5 rounded-sm" style={{ backgroundColor: 'rgba(16, 185, 129, 0.85)' }} />
+          <span className="text-slate-600">Entradas</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3.5 h-3.5 rounded-sm" style={{ backgroundColor: 'rgba(248, 113, 113, 0.75)' }} />
+          <span className="text-slate-600">Saídas</span>
+        </div>
+      </div>
     </div>
   );
 }
