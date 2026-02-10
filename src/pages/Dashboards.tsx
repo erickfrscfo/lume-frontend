@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight,
-  ChevronDown, ChevronUp, ChevronRight, Filter, Info
+  ChevronDown, ChevronUp, ChevronRight, Filter, Info, Download, Loader2
 } from 'lucide-react';
 import { ExplainButton } from '@/components/ExplainModal';
 import DateRangePicker from '@/components/DateRangePicker';
@@ -510,6 +510,7 @@ export default function Dashboards() {
   const [txEndDate, setTxEndDate] = useState('');
   const [appliedStartDate, setAppliedStartDate] = useState('');
   const [appliedEndDate, setAppliedEndDate] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -565,6 +566,108 @@ export default function Dashboards() {
     setAppliedStartDate('');
     setAppliedEndDate('');
     setTxPage(1);
+  };
+
+  // ============================================
+  // EXPORT TO EXCEL
+  // Busca TODAS as páginas respeitando filtros ativos
+  // ============================================
+  const exportToExcel = async () => {
+    setIsExporting(true);
+    try {
+      // Buscar todas as transações paginadas com os filtros atuais
+      const allTransactions: Transaction[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const res = await financialApi.transactions(
+          page,
+          txFilter === 'all' ? undefined : txFilter,
+          appliedStartDate || undefined,
+          appliedEndDate || undefined
+        );
+        const txs = res.data.data?.transactions || res.data.transactions || res.data.data || [];
+        allTransactions.push(...txs);
+        hasMore = txs.length >= 50;
+        page++;
+        // Safety: max 100 pages (5000 transações)
+        if (page > 100) break;
+      }
+
+      if (allTransactions.length === 0) {
+        alert('Nenhuma transação para exportar com os filtros atuais.');
+        return;
+      }
+
+      // Importar SheetJS dinamicamente
+      const XLSX = await import('xlsx');
+
+      // Formatar dados conforme especificação:
+      // Ordem: Data, Tipo, Categoria, Descrição, Valor
+      // Data: DD/MM/AAAA | Valor: negativo, formato R$xx,xx
+      const rows = allTransactions.map((tx) => {
+        // Formatar data DD/MM/AAAA
+        const d = new Date(tx.date + (tx.date.includes('T') ? '' : 'T00:00:00'));
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        const dataFormatada = `${dd}/${mm}/${yyyy}`;
+
+        // Tipo legível
+        const tipo = tx.type === 'INCOME' ? 'Receita' : 'Despesa';
+
+        // Categoria
+        const categoria = tx.category?.name || 'Sem categoria';
+
+        // Descrição
+        const descricao = tx.description;
+
+        // Valor: sempre negativo para despesas, positivo para receitas
+        // Formato monetário R$xx,xx
+        const valorNum = Math.abs(tx.amount);
+        const valorFinal = tx.type === 'EXPENSE' ? -valorNum : valorNum;
+        const valorFormatado = `R$ ${valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        return {
+          'Data': dataFormatada,
+          'Tipo': tipo,
+          'Categoria': categoria,
+          'Descrição': descricao,
+          'Valor': valorFormatado,
+        };
+      });
+
+      // Criar workbook e worksheet
+      const ws = XLSX.utils.json_to_sheet(rows);
+
+      // Ajustar largura das colunas
+      ws['!cols'] = [
+        { wch: 12 },  // Data
+        { wch: 10 },  // Tipo
+        { wch: 30 },  // Categoria
+        { wch: 50 },  // Descrição
+        { wch: 18 },  // Valor
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Transações');
+
+      // Gerar nome do arquivo com filtros aplicados
+      const parts = ['transacoes'];
+      if (txFilter !== 'all') parts.push(txFilter === 'INCOME' ? 'receitas' : 'despesas');
+      if (appliedStartDate) parts.push(`de_${appliedStartDate}`);
+      if (appliedEndDate) parts.push(`ate_${appliedEndDate}`);
+      const fileName = `${parts.join('_')}.xlsx`;
+
+      // Download
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error('Erro ao exportar:', err);
+      alert('Erro ao exportar transações. Tente novamente.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // Agrupar despesas por categoria para pie chart
@@ -790,6 +893,18 @@ export default function Dashboards() {
                   <option value="INCOME">Receitas</option>
                   <option value="EXPENSE">Despesas</option>
                 </select>
+                <button
+                  onClick={exportToExcel}
+                  disabled={isExporting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Exportar transações filtradas para Excel"
+                >
+                  {isExporting ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Exportando...</>
+                  ) : (
+                    <><Download className="w-4 h-4" /> Exportar Excel</>
+                  )}
+                </button>
               </div>
             </div>
             <DateRangePicker
