@@ -54,9 +54,11 @@ export const financialApi = {
   dashboard: () => api.get('/financial/dashboard'),
   cashflow: (months?: number) => api.get(`/financial/cashflow?months=${months || 12}`),
   dre: (months?: number) => api.get(`/financial/dre?months=${months || 7}`),
-  transactions: (page?: number, type?: string) => {
+  transactions: (page?: number, type?: string, startDate?: string, endDate?: string) => {
     let url = `/financial/transactions?page=${page || 1}&limit=50`;
     if (type) url += `&type=${type}`;
+    if (startDate) url += `&startDate=${startDate}`;
+    if (endDate) url += `&endDate=${endDate}`;
     return api.get(url);
   },
   createTransaction: (data: {

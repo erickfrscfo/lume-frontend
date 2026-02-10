@@ -11,6 +11,7 @@ import {
   ChevronDown, ChevronUp, ChevronRight, Filter, Info
 } from 'lucide-react';
 import { ExplainButton } from '@/components/ExplainModal';
+import DateRangePicker from '@/components/DateRangePicker';
 
 // ============================================
 // TYPES
@@ -505,6 +506,10 @@ export default function Dashboards() {
   const [activeView, setActiveView] = useState<'overview' | 'dre' | 'transactions'>('overview');
   const [txPage, setTxPage] = useState(1);
   const [txFilter, setTxFilter] = useState<'all' | 'INCOME' | 'EXPENSE'>('all');
+  const [txStartDate, setTxStartDate] = useState('');
+  const [txEndDate, setTxEndDate] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
 
   useEffect(() => {
     loadData();
@@ -512,7 +517,7 @@ export default function Dashboards() {
 
   useEffect(() => {
     loadTransactions();
-  }, [txPage, txFilter]);
+  }, [txPage, txFilter, appliedStartDate, appliedEndDate]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -536,11 +541,30 @@ export default function Dashboards() {
 
   const loadTransactions = async () => {
     try {
-      const res = await financialApi.transactions(txPage, txFilter === 'all' ? undefined : txFilter);
+      const res = await financialApi.transactions(
+        txPage,
+        txFilter === 'all' ? undefined : txFilter,
+        appliedStartDate || undefined,
+        appliedEndDate || undefined
+      );
       setTransactions(res.data.data?.transactions || res.data.transactions || res.data.data || []);
     } catch (err) {
       console.error('Erro ao carregar transações:', err);
     }
+  };
+
+  const applyDateFilter = () => {
+    setAppliedStartDate(txStartDate);
+    setAppliedEndDate(txEndDate);
+    setTxPage(1);
+  };
+
+  const clearDateFilter = () => {
+    setTxStartDate('');
+    setTxEndDate('');
+    setAppliedStartDate('');
+    setAppliedEndDate('');
+    setTxPage(1);
   };
 
   // Agrupar despesas por categoria para pie chart
@@ -752,20 +776,35 @@ export default function Dashboards() {
       {/* ========== TRANSACTIONS ========== */}
       {activeView === 'transactions' && (
         <div className="bg-white rounded-xl border border-slate-200">
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-900">Transações</h3>
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-slate-400" />
-              <select
-                value={txFilter}
-                onChange={(e) => { setTxFilter(e.target.value as any); setTxPage(1); }}
-                className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">Todas</option>
-                <option value="INCOME">Receitas</option>
-                <option value="EXPENSE">Despesas</option>
-              </select>
+          <div className="p-6 border-b border-slate-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">Transações</h3>
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-slate-400" />
+                <select
+                  value={txFilter}
+                  onChange={(e) => { setTxFilter(e.target.value as any); setTxPage(1); }}
+                  className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Todas</option>
+                  <option value="INCOME">Receitas</option>
+                  <option value="EXPENSE">Despesas</option>
+                </select>
+              </div>
             </div>
+            <DateRangePicker
+              startDate={txStartDate}
+              endDate={txEndDate}
+              onChangeStart={setTxStartDate}
+              onChangeEnd={setTxEndDate}
+              onApply={applyDateFilter}
+              onClear={clearDateFilter}
+            />
+            {appliedStartDate && appliedEndDate && (
+              <p className="text-xs text-slate-400 mt-2">
+                Exibindo transações de {new Date(appliedStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(appliedEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
+              </p>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
