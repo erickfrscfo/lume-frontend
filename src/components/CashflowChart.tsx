@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Cell,
   ReferenceArea,
+  ReferenceLine,
 } from 'recharts';
 import { formatCurrency } from '@/lib/utils';
 import { ExplainButton } from '@/components/ExplainModal';
@@ -69,25 +70,26 @@ function fmtAxis(v: number): string {
 }
 
 // ============================================
-// COLORS — matching wireframe exactly
+// COLORS — redesigned: income green above zero, expense red below zero
 // ============================================
 const COLORS = {
-  income: '#10b981',           // green — base of bar
+  income: '#10b981',               // green — above zero
   incomeForecast: 'rgba(16,185,129,0.35)',
-  expense: '#c4a882',          // beige/tan — stacked above green
-  expenseForecast: 'rgba(196,168,130,0.40)',
-  scenario: '#a78bfa',         // purple — stacked above beige
+  expense: '#ef4444',              // red — below zero
+  expenseForecast: 'rgba(239,68,68,0.35)',
+  scenario: '#a78bfa',             // purple — scenario adjustments
   scenarioForecast: 'rgba(167,139,250,0.45)',
-  baselineLine: '#1e293b',     // dark black line
-  scenarioLine: '#7c3aed',     // purple dashed line
+  baselineLine: '#1e293b',         // dark black line
+  scenarioLine: '#7c3aed',         // purple dashed line
   legendIncome: '#10b981',
-  legendExpense: '#ef4444',    // legend shows red dot for "Saída"
+  legendExpense: '#ef4444',
   legendBaseline: '#1e293b',
   legendScenario: '#a78bfa',
+  zeroLine: '#94a3b8',             // gray zero reference line
 };
 
 // ============================================
-// CUSTOM TOOLTIP — matches wireframe style
+// CUSTOM TOOLTIP
 // ============================================
 function ChartTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
@@ -103,7 +105,15 @@ function ChartTooltip({ active, payload }: any) {
         <TooltipRow color={COLORS.legendIncome} label="Entrada" value={formatCurrency(d.rawIncome)} />
         <TooltipRow color={COLORS.legendExpense} label="Saída" value={formatCurrency(d.rawExpense)} />
         <div className="border-t border-slate-100 pt-2 mt-2">
-          <TooltipLineRow color={COLORS.baselineLine} label="Saldo base" value={formatCurrency(d.baselineBal)} bold />
+          <div className="flex justify-between items-center gap-6">
+            <span className="text-slate-600 font-medium">Líquido</span>
+            <span className={`font-bold tabular-nums ${d.rawIncome - d.rawExpense >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {formatCurrency(d.rawIncome - d.rawExpense)}
+            </span>
+          </div>
+        </div>
+        <div className="border-t border-slate-100 pt-2 mt-1">
+          <TooltipLineRow color={COLORS.baselineLine} label="Saldo acumulado" value={formatCurrency(d.baselineBal)} bold />
         </div>
         {d.hasScenario && d.rawScTotal > 0 && (
           <>
@@ -174,8 +184,7 @@ export default function CashflowChart({
 
   // ============================================
   // BUILD CHART DATA
-  // Wireframe structure: ALL bars are POSITIVE, stacked above zero
-  // Stack order (bottom to top): income (green) → expense (beige) → scenario (purple)
+  // NEW DESIGN: income as positive bars (above zero), expense as negative bars (below zero)
   // ============================================
   const chartData = useMemo(() => {
     let baseBal = initialBalance;
@@ -185,9 +194,9 @@ export default function CashflowChart({
       const isForecast = pt.month >= forecastStart;
       const label = fmtMonth(pt.month);
 
-      // All values positive — stacked above zero
+      // Income positive (above zero), expense negative (below zero)
       const incomeVal = Math.abs(pt.income);
-      const expenseVal = Math.abs(pt.expense);
+      const expenseVal = -Math.abs(pt.expense); // NEGATIVE — renders below zero
 
       baseBal += pt.net;
 
@@ -213,7 +222,7 @@ export default function CashflowChart({
         month: pt.month,
         label,
         isForecast,
-        // Stacked bars (all positive, above zero)
+        // Bars: income positive (above zero), expense negative (below zero)
         income: incomeVal,
         expense: expenseVal,
         scenarioBar: hasScenario ? Math.abs(scTotal) : 0,
@@ -261,13 +270,13 @@ export default function CashflowChart({
       <div className="flex items-start justify-between mb-5">
         <div>
           <h3 className="text-xl font-bold text-slate-900">Fluxo de Caixa</h3>
-          <p className="text-sm text-slate-400 mt-0.5">Visualização de entradas, saídas e saldo de caixa</p>
+          <p className="text-sm text-slate-400 mt-0.5">Entradas acima da linha zero, saídas abaixo</p>
         </div>
         <div className="flex items-center gap-3">
           <ExplainButton
             metric="Fluxo de Caixa"
-            value={`Entradas: ${formatCurrency(chartData.reduce((s: number, d: any) => s + (d.income || 0), 0))} / Saídas: ${formatCurrency(chartData.reduce((s: number, d: any) => s + (d.expense || 0), 0))}`}
-            context={`Dados do gráfico de Fluxo de Caixa (${chartData.length} meses):\n${chartData.map((d: any) => `${d.month}: Entrada R$ ${(d.income||0).toLocaleString('pt-BR')} | Saída R$ ${(d.expense||0).toLocaleString('pt-BR')} | Líquido R$ ${(d.net||0).toLocaleString('pt-BR')}`).join('\n')}`}
+            value={`Entradas: ${formatCurrency(chartData.reduce((s: number, d: any) => s + (d.income || 0), 0))} / Saídas: ${formatCurrency(chartData.reduce((s: number, d: any) => s + Math.abs(d.expense || 0), 0))}`}
+            context={`Dados do gráfico de Fluxo de Caixa (${chartData.length} meses):\n${chartData.map((d: any) => `${d.month}: Entrada R$ ${(d.income||0).toLocaleString('pt-BR')} | Saída R$ ${Math.abs(d.expense||0).toLocaleString('pt-BR')} | Líquido R$ ${((d.income||0)+(d.expense||0)).toLocaleString('pt-BR')}`).join('\n')}`}
           />
           {hasScenario && (
             <div className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-violet-300 text-violet-600 text-sm font-medium bg-violet-50">
@@ -292,7 +301,7 @@ export default function CashflowChart({
         <ComposedChart
           data={chartData}
           margin={{ top: 10, right: 15, left: 5, bottom: 5 }}
-          barCategoryGap="35%"
+          barCategoryGap="25%"
         >
           {/* Grid: horizontal dashed lines only */}
           <CartesianGrid
@@ -312,6 +321,14 @@ export default function CashflowChart({
             />
           )}
 
+          {/* Zero reference line — separates income from expense */}
+          <ReferenceLine
+            yAxisId="bars"
+            y={0}
+            stroke={COLORS.zeroLine}
+            strokeWidth={1.5}
+          />
+
           {/* X axis */}
           <XAxis
             dataKey="month"
@@ -321,7 +338,7 @@ export default function CashflowChart({
             tickLine={false}
           />
 
-          {/* Y axis left — for bars */}
+          {/* Y axis left — for bars (includes negative range for expenses) */}
           <YAxis
             yAxisId="bars"
             tick={{ fontSize: 10, fill: '#94a3b8' }}
@@ -344,26 +361,25 @@ export default function CashflowChart({
 
           <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
 
-          {/* ===== STACKED BARS — all positive, same stackId ===== */}
-          {/* Order: income (green, base) → expense (beige, middle) → scenario (purple, top) */}
+          {/* ===== BARS — income above zero, expense below zero ===== */}
 
-          {/* 1. Income — green base */}
-          <Bar yAxisId="bars" dataKey="income" stackId="stack" maxBarSize={48} radius={[0, 0, 0, 0]}>
+          {/* 1. Income — green, above zero */}
+          <Bar yAxisId="bars" dataKey="income" maxBarSize={40} radius={[4, 4, 0, 0]}>
             {chartData.map((e, i) => (
               <Cell key={i} fill={e.isForecast ? COLORS.incomeForecast : COLORS.income} />
             ))}
           </Bar>
 
-          {/* 2. Expense — beige/tan stacked above green */}
-          <Bar yAxisId="bars" dataKey="expense" stackId="stack" maxBarSize={48} radius={[0, 0, 0, 0]}>
+          {/* 2. Expense — red, below zero (values are negative) */}
+          <Bar yAxisId="bars" dataKey="expense" maxBarSize={40} radius={[0, 0, 4, 4]}>
             {chartData.map((e, i) => (
               <Cell key={i} fill={e.isForecast ? COLORS.expenseForecast : COLORS.expense} />
             ))}
           </Bar>
 
-          {/* 3. Scenario — purple stacked above beige (only when active) */}
+          {/* 3. Scenario — purple (only when active) */}
           {hasScenario && (
-            <Bar yAxisId="bars" dataKey="scenarioBar" stackId="stack" maxBarSize={48} radius={[2, 2, 0, 0]}>
+            <Bar yAxisId="bars" dataKey="scenarioBar" maxBarSize={40} radius={[4, 4, 0, 0]}>
               {chartData.map((e, i) => (
                 <Cell key={i} fill={e.isForecast ? COLORS.scenarioForecast : COLORS.scenario} />
               ))}
@@ -399,11 +415,11 @@ export default function CashflowChart({
         </ComposedChart>
       </ResponsiveContainer>
 
-      {/* ===== LEGEND — circles, matching wireframe ===== */}
+      {/* ===== LEGEND ===== */}
       <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 mt-5 text-sm">
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: COLORS.legendBaseline }} />
-          <span className="text-slate-600">Saldo base</span>
+          <span className="text-slate-600">Saldo acumulado</span>
         </div>
         {hasScenario && (
           <div className="flex items-center gap-2">
