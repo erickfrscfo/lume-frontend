@@ -503,6 +503,15 @@ Pedido do usuário: ${userMsg}`;
     <div className="flex gap-6 h-full">
       {/* ===== MAIN CONTENT ===== */}
       <div className="flex-1 min-w-0 space-y-6">
+        {/* Dica fixa sobre Explica pra mim */}
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-3 flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-4 h-4 text-blue-600" />
+          </div>
+          <p className="text-sm text-blue-800">
+            <span className="font-semibold">Dica:</span> Passe o mouse sobre os <span className="underline decoration-dotted underline-offset-2 decoration-blue-400">termos sublinhados</span> para ver explicações contextualizadas. Clique em <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-blue-200 rounded-md text-xs font-medium text-blue-700 mx-0.5"><Sparkles className="w-3 h-3" />Explica pra mim</span> para uma análise completa da IA.
+          </p>
+        </div>
         {showAlert && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -524,7 +533,7 @@ Pedido do usuário: ${userMsg}`;
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} showChange={true} subtitle="Saldo total disponível" />
-          <MetricCard title="Burn Rate" value={burnRate} icon={TrendingDown} showChange={false} subtitle="Ritmo de consumo mensal do caixa" />
+          <MetricCard title="Taxa de Queima" value={burnRate} icon={TrendingDown} showChange={false} subtitle="Ritmo de consumo mensal do caixa" />
           <MetricCard title="Runway" value={runway} icon={Calendar} showChange={false} format="months" subtitle="Meses de operação restantes" />
         </div>
 
@@ -580,7 +589,7 @@ Pedido do usuário: ${userMsg}`;
       </div>
 
       {/* ===== SCENARIOS SIDEBAR ===== */}
-      <div className={`${scenariosOpen ? 'w-[340px]' : 'w-12'} transition-all duration-300 flex-shrink-0`}>
+      <div className={`${scenariosOpen ? 'w-[340px]' : 'w-12'} transition-all duration-300 flex-shrink-0 sticky top-0 h-screen`}>
         <div className="bg-white rounded-xl border border-slate-200 h-full flex flex-col overflow-hidden">
 
           {/* Collapsed state */}
