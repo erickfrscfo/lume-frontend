@@ -10,7 +10,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import {
   DollarSign, TrendingDown, Calendar,
   ChevronDown, ToggleLeft, ToggleRight,
-  AlertTriangle, X, Info, Plus, Trash2,
+  X, Info, Plus, Trash2,
   Send, MoreHorizontal, ArrowLeft, Sparkles, Loader2
 } from 'lucide-react';
 
@@ -330,7 +330,6 @@ export default function Dashboard() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scenariosOpen, setScenariosOpen] = useState(true);
-  const [showAlert, setShowAlert] = useState(true);
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [error, setError] = useState('');
   const [showNewForm, setShowNewForm] = useState(false);
@@ -500,9 +499,14 @@ Pedido do usuário: ${userMsg}`;
   // RENDER
   // ============================================
   return (
-    <div className="flex gap-6 h-full">
-      {/* ===== MAIN CONTENT ===== */}
-      <div className="flex-1 min-w-0 space-y-6">
+    <div className="flex gap-6 h-screen overflow-hidden">
+      {/* ===== MAIN CONTENT (scrollable) ===== */}
+      <div className="flex-1 min-w-0 overflow-y-auto space-y-6 py-6 pr-2">
+
+        {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>}
+
+        <AlertsBanner onViewAll={() => setAlertsPanelOpen(true)} />
+
         {/* Dica fixa sobre Explica pra mim */}
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-3 flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -512,24 +516,6 @@ Pedido do usuário: ${userMsg}`;
             <span className="font-semibold">Dica:</span> Passe o mouse sobre os <span className="underline decoration-dotted underline-offset-2 decoration-blue-400">termos sublinhados</span> para ver explicações contextualizadas. Clique em <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-blue-200 rounded-md text-xs font-medium text-blue-700 mx-0.5"><Sparkles className="w-3 h-3" />Explica pra mim</span> para uma análise completa da IA.
           </p>
         </div>
-        {showAlert && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-amber-800">Alertas Financeiros</p>
-              <p className="text-xs text-amber-600 mt-1">
-                {transactionCount > 0
-                  ? `${transactionCount} transações registradas. Saldo: ${formatCurrency(cashBalance)}`
-                  : 'Nenhuma transação registrada ainda. Importe seu extrato CSV para começar.'}
-              </p>
-            </div>
-            <button onClick={() => setShowAlert(false)} className="text-amber-400 hover:text-amber-600"><X className="w-4 h-4" /></button>
-          </div>
-        )}
-
-        {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>}
-
-        <AlertsBanner onViewAll={() => setAlertsPanelOpen(true)} />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} showChange={true} subtitle="Saldo total disponível" />
@@ -588,8 +574,8 @@ Pedido do usuário: ${userMsg}`;
         </div>
       </div>
 
-      {/* ===== SCENARIOS SIDEBAR ===== */}
-      <div className={`${scenariosOpen ? 'w-[340px]' : 'w-12'} transition-all duration-300 flex-shrink-0 sticky top-0 h-screen`}>
+      {/* ===== SCENARIOS SIDEBAR (fixed, full height) ===== */}
+      <div className={`${scenariosOpen ? 'w-[340px]' : 'w-12'} transition-all duration-300 flex-shrink-0 h-screen py-6`}>
         <div className="bg-white rounded-xl border border-slate-200 h-full flex flex-col overflow-hidden">
 
           {/* Collapsed state */}
@@ -629,7 +615,7 @@ Pedido do usuário: ${userMsg}`;
 
               {/* ===== TAB: SCENARIOS ===== */}
               {activeTab === 'scenarios' && (
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
                   {/* Detail view of a selected scenario */}
                   {selectedScenario ? (
                     <ScenarioDetail
@@ -790,6 +776,30 @@ Pedido do usuário: ${userMsg}`;
                         <Send className="w-3.5 h-3.5" />
                       </button>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Chat input — always visible at bottom of sidebar */}
+              {activeTab === 'scenarios' && (
+                <div className="p-3 border-t border-slate-100">
+                  <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2 border border-slate-200 focus-within:border-violet-300 focus-within:ring-1 focus-within:ring-violet-200 transition-all">
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                      placeholder="Descreva um cenário..."
+                      disabled={isChatLoading}
+                      className="flex-1 bg-transparent text-xs text-slate-700 placeholder:text-slate-400 outline-none disabled:opacity-50"
+                    />
+                    <button
+                      onClick={() => { setActiveTab('conversations'); sendChatMessage(); }}
+                      disabled={!chatInput.trim() || isChatLoading}
+                      className="p-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               )}

@@ -58,7 +58,7 @@ export default function MetricCard({ title, value, change, icon: Icon, format = 
           </div>
         </div>
       </div>
-      <p className="text-sm text-slate-500 mb-1">{title}</p>
+      <p className="text-sm text-slate-500 mb-1 underline decoration-dotted underline-offset-2 decoration-slate-300 cursor-help">{title}</p>
       <p className="text-2xl font-bold text-slate-900">{formattedValue}</p>
       {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
     </div>
