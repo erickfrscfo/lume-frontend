@@ -11,7 +11,6 @@ import {
   AlertTriangle, X, Info
 } from 'lucide-react';
 
-// O backend retorna métricas como objetos { value, change }
 interface MetricValue {
   value: number;
   change: number;
@@ -42,7 +41,6 @@ interface Scenario {
   isActive: boolean;
 }
 
-// Helper para extrair valor numérico de uma métrica (pode ser objeto ou número)
 function extractValue(metric: any): number {
   if (metric === null || metric === undefined) return 0;
   if (typeof metric === 'number') return metric;
@@ -50,7 +48,6 @@ function extractValue(metric: any): number {
   return Number(metric) || 0;
 }
 
-// Helper para extrair change de uma métrica
 function extractChange(metric: any): number | undefined {
   if (metric === null || metric === undefined) return undefined;
   if (typeof metric === 'object' && metric.change !== undefined) {
@@ -117,7 +114,6 @@ export default function Dashboard() {
     }
   };
 
-  // Extrair valores das métricas de forma segura
   const cashBalance = extractValue(dashData?.cashBalance);
   const cashBalanceChange = extractChange(dashData?.cashBalance);
   const burnRate = extractValue(dashData?.burnRate);
@@ -128,7 +124,6 @@ export default function Dashboard() {
   const growthChange = extractChange(dashData?.growth);
   const transactionCount = dashData?.transactionCount || 0;
 
-  // Transformar dados do cashflow para o componente CashflowChart
   const cashflowData: CashflowDataPoint[] = useMemo(() => {
     return cashflowRaw.map(c => ({
       month: c.month,
@@ -138,7 +133,6 @@ export default function Dashboard() {
     }));
   }, [cashflowRaw]);
 
-  // Converter cenários para o formato do CashflowChart
   const chartScenarios: ChartScenario[] = useMemo(() => {
     return scenarios.map(s => ({
       id: s.id,
@@ -149,11 +143,15 @@ export default function Dashboard() {
     }));
   }, [scenarios]);
 
-  // Determinar mês de corte para forecast (mês atual)
   const forecastStartMonth = useMemo(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, []);
+
+  const handleExplain = () => {
+    // Placeholder — futura integração com IA para explicar o gráfico
+    alert('Em breve: a IA vai explicar o gráfico para você!');
+  };
 
   if (isLoading) return <LoadingSpinner message="Carregando dashboard..." />;
 
@@ -161,7 +159,7 @@ export default function Dashboard() {
     <div className="flex gap-6 h-full">
       {/* Main Content */}
       <div className="flex-1 min-w-0 space-y-6">
-        {/* Alert Popup */}
+        {/* Alert */}
         {showAlert && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -179,71 +177,26 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
-            {error}
-          </div>
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>
         )}
 
         {/* Metrics */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            title="Saldo de Caixa"
-            value={cashBalance}
-            icon={DollarSign}
-            change={cashBalanceChange}
-            subtitle="Últimos 6 meses"
-          />
-          <MetricCard
-            title="Burn Rate"
-            value={burnRate}
-            icon={TrendingDown}
-            change={burnRateChange}
-            subtitle="Despesas - Receitas (mês)"
-          />
-          <MetricCard
-            title="Fluxo de Caixa Líquido"
-            value={growth}
-            icon={Wallet}
-            change={growthChange}
-            format="percent"
-            subtitle="Crescimento mensal"
-          />
-          <MetricCard
-            title="Runway"
-            value={runway}
-            icon={Calendar}
-            change={runwayChange}
-            format="days"
-            subtitle="Meses de operação restantes"
-          />
+          <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} subtitle="Últimos 6 meses" />
+          <MetricCard title="Burn Rate" value={burnRate} icon={TrendingDown} change={burnRateChange} subtitle="Despesas - Receitas (mês)" />
+          <MetricCard title="Fluxo de Caixa Líquido" value={growth} icon={Wallet} change={growthChange} format="percent" subtitle="Crescimento mensal" />
+          <MetricCard title="Runway" value={runway} icon={Calendar} change={runwayChange} format="days" subtitle="Meses de operação restantes" />
         </div>
 
-        {/* Cash Flow Chart — Novo gráfico com barras empilhadas e linhas de saldo */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Fluxo de Caixa</h3>
-              <p className="text-sm text-slate-500">Entradas, saídas e saldo acumulado</p>
-            </div>
-            {scenarios.filter(s => s.isActive).length > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 rounded-full">
-                <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-                <span className="text-xs font-medium text-purple-700">
-                  {scenarios.filter(s => s.isActive).length} cenário{scenarios.filter(s => s.isActive).length > 1 ? 's' : ''} ativo{scenarios.filter(s => s.isActive).length > 1 ? 's' : ''}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <CashflowChart
-            data={cashflowData}
-            scenarios={chartScenarios}
-            initialBalance={0}
-            forecastStartMonth={forecastStartMonth}
-          />
-        </div>
+        {/* Cash Flow Chart — o componente já inclui seu próprio card, header e botões */}
+        <CashflowChart
+          data={cashflowData}
+          scenarios={chartScenarios}
+          initialBalance={0}
+          forecastStartMonth={forecastStartMonth}
+          onExplain={handleExplain}
+        />
 
         {/* DRE Summary */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
