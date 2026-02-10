@@ -7,7 +7,7 @@ import CashflowChart from '@/components/CashflowChart';
 import type { CashflowDataPoint, Scenario as ChartScenario } from '@/components/CashflowChart';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import {
-  DollarSign, TrendingDown, Calendar, BarChart3, Percent,
+  DollarSign, TrendingDown, Calendar,
   ChevronDown, ToggleLeft, ToggleRight,
   AlertTriangle, X, Info, Plus, Trash2,
   Send, MoreHorizontal, ArrowLeft, Sparkles, Loader2
@@ -326,7 +326,6 @@ function ScenarioDetail({ scenario, onBack, onToggle, onDelete }: ScenarioDetail
 export default function Dashboard() {
   const [dashData, setDashData] = useState<DashboardData | null>(null);
   const [cashflowRaw, setCashflowRaw] = useState<CashflowRaw[]>([]);
-  const [dreRaw, setDreRaw] = useState<Record<string, Record<string, number>>>({});
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scenariosOpen, setScenariosOpen] = useState(true);
@@ -356,16 +355,14 @@ export default function Dashboard() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [metricsRes, cashflowRes, scenariosRes, dreRes] = await Promise.allSettled([
+      const [metricsRes, cashflowRes, scenariosRes] = await Promise.allSettled([
         financialApi.dashboard(),
         financialApi.cashflow(12),
         scenariosApi.list(),
-        financialApi.dre(12),
       ]);
       if (metricsRes.status === 'fulfilled') setDashData(metricsRes.value.data.data || metricsRes.value.data);
       if (cashflowRes.status === 'fulfilled') setCashflowRaw(cashflowRes.value.data.data || cashflowRes.value.data || []);
       if (scenariosRes.status === 'fulfilled') setScenarios(scenariosRes.value.data.data || scenariosRes.value.data || []);
-      if (dreRes.status === 'fulfilled') setDreRaw(dreRes.value.data.data || dreRes.value.data || {});
     } catch (err: any) {
       setError('Erro ao carregar dados. Verifique a conexão com o servidor.');
     } finally {
@@ -477,47 +474,6 @@ Pedido do usuário: ${userMsg}`;
   // growth removido — indicador Fluxo de Caixa Líquido retirado da tela
   const transactionCount = dashData?.transactionCount || 0;
 
-  // ============================================
-  // MARGENS MÉDIAS (calculadas a partir do DRE raw)
-  // ============================================
-  const { avgGrossMargin, avgNetMargin } = useMemo(() => {
-    const monthKeys = Object.keys(dreRaw).sort();
-    if (monthKeys.length === 0) return { avgGrossMargin: 0, avgNetMargin: 0 };
-
-    let totalGrossMargin = 0;
-    let totalNetMargin = 0;
-    let validMonths = 0;
-
-    monthKeys.forEach(mk => {
-      const cats = dreRaw[mk] || {};
-      let revenue = 0;
-      let cogs = 0;
-      let opex = 0;
-
-      Object.entries(cats).forEach(([code, amount]) => {
-        const val = Number(amount) || 0;
-        const prefix = code.split('.')[0];
-        switch (prefix) {
-          case '1': case '2': revenue += val; break;
-          case '3': cogs += val; break;
-          case '4': case '5': case '6': case '7': case '8': opex += val; break;
-        }
-      });
-
-      if (revenue > 0) {
-        const grossProfit = revenue - cogs;
-        const netIncome = grossProfit - opex;
-        totalGrossMargin += (grossProfit / revenue) * 100;
-        totalNetMargin += (netIncome / revenue) * 100;
-        validMonths++;
-      }
-    });
-
-    return {
-      avgGrossMargin: validMonths > 0 ? totalGrossMargin / validMonths : 0,
-      avgNetMargin: validMonths > 0 ? totalNetMargin / validMonths : 0,
-    };
-  }, [dreRaw]);
 
   const cashflowData: CashflowDataPoint[] = useMemo(() => {
     return cashflowRaw.map(c => ({ month: c.month, income: c.income || 0, expense: Math.abs(c.expense || c.expenses || 0), net: c.net || 0 }));
@@ -560,12 +516,10 @@ Pedido do usuário: ${userMsg}`;
 
         {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>}
 
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} showChange={true} subtitle="Saldo total disponível" />
-          <MetricCard title="Burn Rate" value={burnRate} icon={TrendingDown} showChange={false} subtitle="Ritmo de consumo mensal" />
-          <MetricCard title="Runway" value={runway} icon={Calendar} showChange={false} format="months" subtitle="Meses restantes de operação" />
-          <MetricCard title="Margem Bruta" value={avgGrossMargin} icon={BarChart3} showChange={false} format="percent" subtitle="Média mensal" />
-          <MetricCard title="Margem Líquida" value={avgNetMargin} icon={Percent} showChange={false} format="percent" subtitle="Média mensal" />
+          <MetricCard title="Burn Rate" value={burnRate} icon={TrendingDown} showChange={false} subtitle="Ritmo de consumo mensal do caixa" />
+          <MetricCard title="Runway" value={runway} icon={Calendar} showChange={false} format="months" subtitle="Meses de operação restantes" />
         </div>
 
         <CashflowChart data={cashflowData} scenarios={chartScenarios} initialBalance={0} forecastStartMonth={forecastStartMonth} />
