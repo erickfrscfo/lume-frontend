@@ -114,6 +114,16 @@ export const scenariosApi = {
 };
 
 // ============================================
+// ALERTS
+// ============================================
+export const alertsApi = {
+  list: () => api.get('/alerts'),
+  markRead: (id: string) => api.patch(`/alerts/${id}/read`),
+  dismiss: (id: string) => api.patch(`/alerts/${id}/dismiss`),
+  generate: () => api.post('/alerts/generate'),
+};
+
+// ============================================
 // HEALTH
 // ============================================
 export const healthApi = {

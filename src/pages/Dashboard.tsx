@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { financialApi, scenariosApi, aiApi } from '@/lib/api';
+import { financialApi, scenariosApi, aiApi, alertsApi } from '@/lib/api';
 import { formatCurrency, getMonthLabel } from '@/lib/utils';
 import MetricCard from '@/components/MetricCard';
+import { AlertsBanner, AlertsPanel } from '@/components/AlertsPanel';
 import { ExplainButton } from '@/components/ExplainModal';
 import CashflowChart from '@/components/CashflowChart';
 import type { CashflowDataPoint, Scenario as ChartScenario } from '@/components/CashflowChart';
@@ -330,6 +331,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [scenariosOpen, setScenariosOpen] = useState(true);
   const [showAlert, setShowAlert] = useState(true);
+  const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [error, setError] = useState('');
   const [showNewForm, setShowNewForm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -492,6 +494,8 @@ Pedido do usuário: ${userMsg}`;
 
   if (isLoading) return <LoadingSpinner message="Carregando dashboard..." />;
 
+  // Painel de alertas (renderizado fora do fluxo principal)
+
   // ============================================
   // RENDER
   // ============================================
@@ -515,6 +519,8 @@ Pedido do usuário: ${userMsg}`;
         )}
 
         {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>}
+
+        <AlertsBanner onViewAll={() => setAlertsPanelOpen(true)} />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} showChange={true} subtitle="Saldo total disponível" />
@@ -782,6 +788,7 @@ Pedido do usuário: ${userMsg}`;
           )}
         </div>
       </div>
+      <AlertsPanel isOpen={alertsPanelOpen} onClose={() => setAlertsPanelOpen(false)} />
     </div>
   );
 }
