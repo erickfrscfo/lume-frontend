@@ -43,7 +43,7 @@ export default function ReuniaoExecutiva() {
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }));
       const res = await aiApi.chat(messageText, history);
-      const aiResponse = res.data.data?.response || res.data.response || 'Desculpe, não consegui processar sua mensagem.';
+      const aiResponse = res.data.data?.message || res.data.data?.response || res.data.message || res.data.response || 'Desculpe, não consegui processar sua mensagem.';
       setMessages(prev => [...prev, { role: 'assistant', content: aiResponse, timestamp: new Date() }]);
     } catch (err: any) {
       const errorMsg = err.response?.status === 429
