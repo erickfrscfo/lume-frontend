@@ -28,16 +28,24 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside className={`${collapsed ? 'w-16' : 'w-60'} bg-white border-r border-slate-200 flex flex-col transition-all duration-300 h-screen sticky top-0`}>
+    <aside
+      className={`${collapsed ? 'w-16' : 'w-60'} flex flex-col transition-all duration-300 h-screen sticky top-0`}
+      style={{ backgroundColor: '#0c1527', borderRight: '1px solid rgba(255,255,255,0.06)' }}
+    >
       {/* Logo */}
-      <div className="p-4 border-b border-slate-100 flex items-center gap-2">
-        <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center flex-shrink-0">
+      <div className="p-4 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)' }}
+        >
           <Sparkles className="w-4 h-4 text-white" />
         </div>
-        {!collapsed && <span className="text-lg font-bold text-slate-900">Lume</span>}
+        {!collapsed && <span className="text-lg font-bold text-white">Lume</span>}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="ml-auto text-slate-400 hover:text-slate-600 transition-colors"
+          className="ml-auto transition-colors"
+          style={{ color: '#475569' }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#94a3b8')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
@@ -51,32 +59,57 @@ export default function Sidebar() {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200`}
+              style={
                 isActive
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
+                  ? { backgroundColor: '#3b82f6', color: '#ffffff', boxShadow: '0 4px 12px rgba(59,130,246,0.25)' }
+                  : { backgroundColor: 'transparent', color: '#94a3b8' }
+              }
+              onMouseEnter={e => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                  e.currentTarget.style.color = '#cbd5e1';
+                }
+              }}
+              onMouseLeave={e => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = '#94a3b8';
+                }
+              }}
               title={collapsed ? item.label : undefined}
             >
-              <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
+              <item.icon className="w-5 h-5 flex-shrink-0" style={{ color: isActive ? '#ffffff' : '#64748b' }} />
               {!collapsed && item.label}
+              {isActive && !collapsed && (
+                <ChevronRight className="w-4 h-4 ml-auto" style={{ color: '#ffffff' }} />
+              )}
             </button>
           );
         })}
       </nav>
 
       {/* User */}
-      <div className="p-3 border-t border-slate-100">
+      <div className="p-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         {!collapsed && user && (
           <div className="mb-2 px-3">
-            <p className="text-sm font-medium text-slate-900 truncate">{user.name}</p>
-            <p className="text-xs text-slate-400 truncate">{user.company?.name}</p>
-            <p className="text-xs text-blue-500 font-mono">Cód: {user.company?.code}</p>
+            <p className="text-sm font-medium text-white truncate">{user.name}</p>
+            <p className="text-xs truncate" style={{ color: '#64748b' }}>{user.company?.name}</p>
+            <p className="text-xs font-mono" style={{ color: '#3b82f6' }}>Cód: {user.company?.code}</p>
           </div>
         )}
         <button
           onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all"
+          style={{ color: '#64748b' }}
+          onMouseEnter={e => {
+            e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)';
+            e.currentTarget.style.color = '#f87171';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = '#64748b';
+          }}
           title={collapsed ? 'Sair' : undefined}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
