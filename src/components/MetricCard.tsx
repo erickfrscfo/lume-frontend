@@ -7,11 +7,12 @@ interface MetricCardProps {
   value: number;
   change?: number;
   icon: LucideIcon;
-  format?: 'currency' | 'percent' | 'number' | 'days';
+  format?: 'currency' | 'percent' | 'number' | 'months';
   subtitle?: string;
+  showChange?: boolean;
 }
 
-export default function MetricCard({ title, value, change, icon: Icon, format = 'currency', subtitle }: MetricCardProps) {
+export default function MetricCard({ title, value, change, icon: Icon, format = 'currency', subtitle, showChange = true }: MetricCardProps) {
   // Garantir que value é um número válido
   const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0;
 
@@ -19,12 +20,12 @@ export default function MetricCard({ title, value, change, icon: Icon, format = 
     ? formatCurrency(safeValue)
     : format === 'percent'
     ? `${safeValue.toFixed(1)}%`
-    : format === 'days'
-    ? `${safeValue > 90 ? '∞' : safeValue.toFixed(0)} dias`
+    : format === 'months'
+    ? `${safeValue > 120 ? '∞' : safeValue.toFixed(1)} meses`
     : safeValue.toLocaleString('pt-BR');
 
-  // Só mostrar change se for um número válido e diferente de zero
-  const hasChange = change !== undefined && change !== null && typeof change === 'number' && !isNaN(change) && change !== 0;
+  // Só mostrar change se showChange=true e for um número válido e diferente de zero
+  const hasChange = showChange && change !== undefined && change !== null && typeof change === 'number' && !isNaN(change) && change !== 0;
   const isPositive = hasChange && change! > 0;
   const isNegative = hasChange && change! < 0;
 

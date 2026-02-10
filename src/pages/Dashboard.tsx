@@ -7,7 +7,7 @@ import CashflowChart from '@/components/CashflowChart';
 import type { CashflowDataPoint, Scenario as ChartScenario } from '@/components/CashflowChart';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import {
-  DollarSign, TrendingDown, Wallet, Calendar,
+  DollarSign, TrendingDown, Calendar,
   ChevronDown, ToggleLeft, ToggleRight,
   AlertTriangle, X, Info, Plus, Trash2,
   Send, MoreHorizontal, ArrowLeft, Sparkles, Loader2
@@ -471,8 +471,7 @@ Pedido do usuário: ${userMsg}`;
   const burnRateChange = extractChange(dashData?.burnRate);
   const runway = extractValue(dashData?.runway);
   const runwayChange = extractChange(dashData?.runway);
-  const growth = extractValue(dashData?.growth);
-  const growthChange = extractChange(dashData?.growth);
+  // growth removido — indicador Fluxo de Caixa Líquido retirado da tela
   const transactionCount = dashData?.transactionCount || 0;
 
   const cashflowData: CashflowDataPoint[] = useMemo(() => {
@@ -516,41 +515,56 @@ Pedido do usuário: ${userMsg}`;
 
         {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>}
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} subtitle="Últimos 6 meses" />
-          <MetricCard title="Burn Rate" value={burnRate} icon={TrendingDown} change={burnRateChange} subtitle="Despesas - Receitas (mês)" />
-          <MetricCard title="Fluxo de Caixa Líquido" value={growth} icon={Wallet} change={growthChange} format="percent" subtitle="Crescimento mensal" />
-          <MetricCard title="Runway" value={runway} icon={Calendar} change={runwayChange} format="days" subtitle="Meses de operação restantes" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} showChange={true} subtitle="Saldo total disponível" />
+          <MetricCard title="Burn Rate" value={burnRate} icon={TrendingDown} showChange={false} subtitle="Ritmo de consumo mensal do caixa" />
+          <MetricCard title="Runway" value={runway} icon={Calendar} showChange={false} format="months" subtitle="Meses de operação restantes" />
         </div>
 
         <CashflowChart data={cashflowData} scenarios={chartScenarios} initialBalance={0} forecastStartMonth={forecastStartMonth} />
 
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-slate-900">Resumo DRE</h3>
-            {transactionCount > 0 && (
+            <h3 className="text-lg font-semibold text-slate-900">Resumo de Fluxo de Caixa</h3>
+            {cashflowData.length > 0 && (
               <ExplainButton
-                metric="Resumo DRE"
-                value={`Saldo: ${formatCurrency(cashBalance)} | Burn Rate: ${formatCurrency(burnRate)} | Runway: ${runway > 90 ? 'Sustentável' : runway.toFixed(1) + ' meses'}`}
-                context={`Dados do Resumo DRE:\n- Saldo de Caixa: ${formatCurrency(cashBalance)}\n- Burn Rate Mensal: ${formatCurrency(burnRate)}\n- Runway: ${runway > 90 ? 'Indefinido (sustentável)' : runway.toFixed(1) + ' meses'}\n- Total de Transações: ${transactionCount}`}
+                metric="Resumo de Fluxo de Caixa"
+                value={`${cashflowData.length} meses | Entradas: ${formatCurrency(cashflowData.reduce((s, d) => s + d.income, 0))} | Saídas: ${formatCurrency(cashflowData.reduce((s, d) => s + d.expense, 0))}`}
+                context={`Resumo de Fluxo de Caixa mensal:\n${cashflowData.map(d => `${d.month}: Entradas ${formatCurrency(d.income)} | Saídas ${formatCurrency(d.expense)}`).join('\n')}`}
                 variant="small"
               />
             )}
           </div>
-          {transactionCount === 0 ? (
+          {cashflowData.length === 0 ? (
             <div className="text-center py-8">
               <Info className="w-8 h-8 text-slate-300 mx-auto mb-2" />
               <p className="text-sm text-slate-500">Nenhuma transação registrada</p>
-              <p className="text-xs text-slate-400 mt-1">Importe um CSV para ver o DRE</p>
+              <p className="text-xs text-slate-400 mt-1">Importe um CSV para ver o fluxo de caixa</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b border-slate-200"><th className="text-left py-3 px-4 text-slate-500 font-medium">Categoria</th><th className="text-right py-3 px-4 text-slate-500 font-medium">Valor</th></tr></thead>
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left py-3 px-3 text-slate-500 font-medium whitespace-nowrap">Categoria</th>
+                    {cashflowData.map(d => (
+                      <th key={d.month} className="text-right py-3 px-3 text-slate-500 font-medium whitespace-nowrap text-xs">{d.month}</th>
+                    ))}
+                  </tr>
+                </thead>
                 <tbody>
-                  <tr className="border-b border-slate-100"><td className="py-3 px-4 font-semibold text-slate-900">Saldo de Caixa</td><td className={`py-3 px-4 text-right font-semibold ${cashBalance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(cashBalance)}</td></tr>
-                  <tr className="border-b border-slate-100"><td className="py-3 px-4 text-slate-700">Burn Rate (mensal)</td><td className="py-3 px-4 text-right text-red-600">{formatCurrency(burnRate)}</td></tr>
-                  <tr className="bg-blue-50"><td className="py-3 px-4 font-bold text-slate-900">Runway</td><td className="py-3 px-4 text-right font-bold text-slate-900">{runway > 90 ? '∞ (sustentável)' : `${runway.toFixed(1)} meses`}</td></tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-3 px-3 font-semibold text-emerald-700 whitespace-nowrap">Entradas</td>
+                    {cashflowData.map(d => (
+                      <td key={d.month} className="py-3 px-3 text-right text-emerald-600 font-medium text-xs whitespace-nowrap">{formatCurrency(d.income)}</td>
+                    ))}
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="py-3 px-3 font-semibold text-red-700 whitespace-nowrap">Saídas</td>
+                    {cashflowData.map(d => (
+                      <td key={d.month} className="py-3 px-3 text-right text-red-600 font-medium text-xs whitespace-nowrap">{formatCurrency(d.expense)}</td>
+                    ))}
+                  </tr>
                 </tbody>
               </table>
             </div>
