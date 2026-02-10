@@ -518,9 +518,9 @@ Pedido do usuário: ${userMsg}`;
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} showChange={true} subtitle="Saldo total disponível" />
-          <MetricCard title="Taxa de Queima" value={burnRate} icon={TrendingDown} showChange={false} subtitle="Ritmo de consumo mensal do caixa" />
-          <MetricCard title="Runway" value={runway} icon={Calendar} showChange={false} format="months" subtitle="Meses de operação restantes" />
+          <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} showChange={true} subtitle="Saldo total disponível" colorTheme="blue" />
+          <MetricCard title="Taxa de Queima" value={burnRate} icon={TrendingDown} showChange={false} subtitle="Ritmo de consumo mensal do caixa" colorTheme="red" />
+          <MetricCard title="Runway" value={runway} icon={Calendar} showChange={false} format="months" subtitle="Meses de operação restantes" colorTheme="green" />
         </div>
 
         <CashflowChart data={cashflowData} scenarios={chartScenarios} initialBalance={0} forecastStartMonth={forecastStartMonth} />
