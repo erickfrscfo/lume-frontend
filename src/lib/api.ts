@@ -79,7 +79,7 @@ export const uploadApi = {
     formData.append('file', file);
     return api.post('/upload/csv', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 120000, // 2 min para classificação IA
+      timeout: 300000, // 5 min para classificação IA de muitas transações
     });
   },
   history: () => api.get('/upload/history'),

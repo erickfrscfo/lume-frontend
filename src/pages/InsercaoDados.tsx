@@ -79,8 +79,14 @@ export default function InsercaoDados() {
       const data = res.data.data || res.data;
       setUploadResult(data);
     } catch (err: any) {
-      const errMsg = err.response?.data?.error || err.response?.data?.details?.join(', ') || 'Erro ao fazer upload. Verifique o formato do arquivo.';
-      setError(errMsg);
+      // Diferenciar timeout (dados podem ter sido importados) de erro real
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        // Timeout: o backend pode ter importado os dados mas a classificação IA demorou
+        setError('O processamento está demorando mais que o esperado. Os dados podem já ter sido importados — verifique o Dashboard. A classificação por IA continua em segundo plano.');
+      } else {
+        const errMsg = err.response?.data?.error || err.response?.data?.details?.join(', ') || 'Erro ao fazer upload. Verifique o formato do arquivo.';
+        setError(errMsg);
+      }
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
