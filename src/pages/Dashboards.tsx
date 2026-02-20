@@ -55,13 +55,13 @@ const CATEGORY_NAMES: Record<string, string> = {
   '2.3': 'Venda de Ativos',
   '2.4': 'Empréstimos Recebidos',
   '2.5': 'Outras Receitas',
-  // Custos Diretos
-  '3.0': 'Custos Diretos',
+  // Custos de Mercadoria Vendida (CMV)
+  '3.0': 'Custos de Mercadoria Vendida',
   '3.1': 'Matéria-Prima',
-  '3.2': 'Mercadoria para Revenda',
+  '3.2': 'Custos de Mercadoria Vendida',
   '3.3': 'Mão de Obra Direta',
   '3.4': 'Frete sobre Vendas',
-  '3.5': 'Embalagens',
+  '3.5': 'Custos de Mercadoria Vendida',
   '3.6': 'Serviços de Terceiros (Produção)',
   // Despesas com Pessoal
   '4.0': 'Despesas com Pessoal',
@@ -115,7 +115,7 @@ const CATEGORY_NAMES: Record<string, string> = {
 /** Grupos do DRE com seus prefixos de categoria */
 const DRE_GROUPS = {
   revenue: { label: 'Receita Bruta', prefixes: ['1', '2'], type: 'income' as const },
-  cogs: { label: '(-) Custo dos Produtos/Serviços', prefixes: ['3'], type: 'expense' as const },
+  cogs: { label: '(-) Custos de Mercadoria Vendida (CMV)', prefixes: ['3'], type: 'expense' as const },
   opex: { label: '(-) Despesas Operacionais', prefixes: ['4', '5', '6', '7', '8'], type: 'expense' as const },
 } as const;
 
@@ -421,7 +421,7 @@ function DRETable({
           >
             <td className="py-3 px-6 text-slate-700">
               {renderExpandIcon('cogs')}
-              (-) Custo dos Produtos/Serviços
+              (-) Custos de Mercadoria Vendida (CMV)
             </td>
             {dreData.map((d, i) => (
               <td key={i} className="py-3 px-4 text-right text-red-500">{formatCurrency(-d.cogs)}</td>
