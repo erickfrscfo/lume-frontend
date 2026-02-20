@@ -22,7 +22,10 @@ interface Transaction {
   date: string;
   description: string;
   amount: number;
-  type: 'INCOME' | 'EXPENSE';
+  type?: 'INCOME' | 'EXPENSE';
+  tipo_transacao?: 'INCOME' | 'EXPENSE';
+  tipo_custo?: 'FIXO' | 'VARIAVEL' | null;
+  costConfidence?: number | null;
   category?: { name: string; group: string; code?: string };
 }
 
@@ -138,6 +141,11 @@ interface SubgroupDetail {
   categories: CategoryDetail[];
   totals: Record<string, number>; // monthKey -> total
   totalValue: number;
+}
+
+/** Helper: retorna o tipo da transação, compatível com 'type' e 'tipo_transacao' */
+function getTxType(tx: Transaction): 'INCOME' | 'EXPENSE' {
+  return tx.tipo_transacao || tx.type || 'EXPENSE';
 }
 
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
@@ -648,7 +656,7 @@ export default function Dashboards() {
         const dataFormatada = `${dd}/${mm}/${yyyy}`;
 
         // Tipo legível
-        const tipo = tx.type === 'INCOME' ? 'Receita' : 'Despesa';
+        const tipo = getTxType(tx) === 'INCOME' ? 'Receita' : 'Despesa';
 
         // Categoria
         const categoria = tx.category?.name || 'Sem categoria';
@@ -659,7 +667,7 @@ export default function Dashboards() {
         // Valor: sempre negativo para despesas, positivo para receitas
         // Formato monetário R$xx,xx
         const valorNum = Math.abs(tx.amount);
-        const valorFinal = tx.type === 'EXPENSE' ? -valorNum : valorNum;
+        const valorFinal = getTxType(tx) === 'EXPENSE' ? -valorNum : valorNum;
         const valorFormatado = `R$ ${valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
         return {
@@ -706,7 +714,7 @@ export default function Dashboards() {
   // Agrupar despesas por categoria para pie chart
   const expensesByCategory = useMemo(() => {
     return transactions
-      .filter(t => t.type === 'EXPENSE')
+      .filter(t => getTxType(t) === 'EXPENSE')
       .reduce((acc, t) => {
         const cat = t.category?.name || 'Outros';
         acc[cat] = (acc[cat] || 0) + Math.abs(t.amount);
@@ -991,9 +999,9 @@ export default function Dashboards() {
                         </span>
                       </td>
                       <td className={`py-3 px-6 text-right font-medium ${
-                        tx.type === 'INCOME' ? 'text-emerald-600' : 'text-red-600'
+                        getTxType(tx) === 'INCOME' ? 'text-emerald-600' : 'text-red-600'
                       }`}>
-                        {tx.type === 'INCOME' ? '+' : '-'}{formatCurrencyFull(Math.abs(tx.amount))}
+                        {getTxType(tx) === 'INCOME' ? '+' : '-'}{formatCurrencyFull(Math.abs(tx.amount))}
                       </td>
                     </tr>
                   ))
