@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { financialApi, scenariosApi, aiApi, alertsApi } from '@/lib/api';
+import { financialApi, scenariosApi, aiApi, alertsApi, forecastApi } from '@/lib/api';
 import { formatCurrency, getMonthLabel } from '@/lib/utils';
 import MetricCard from '@/components/MetricCard';
 import { AlertsBanner, AlertsPanel } from '@/components/AlertsPanel';
@@ -11,7 +11,7 @@ import {
   DollarSign, TrendingDown, Calendar,
   ChevronDown, ToggleLeft, ToggleRight,
   X, Info, Plus, Trash2,
-  Send, MoreHorizontal, ArrowLeft, Sparkles, Loader2
+  Send, MoreHorizontal, ArrowLeft, Sparkles, Loader2, BarChart3, TrendingUp
 } from 'lucide-react';
 
 // ============================================
@@ -56,6 +56,37 @@ interface ChatMessage {
 
 type ScenarioType = 'PROJECT' | 'ORGANIZATIONAL_CHANGE' | 'INVESTMENT' | 'DIVESTMENT';
 type SidebarTab = 'scenarios' | 'conversations';
+
+interface ForecastPoint {
+  month: string;
+  income: number;
+  expense: number;
+  net: number;
+  isForecast: true;
+  scenario: string;
+}
+
+interface ForecastMetadata {
+  forecastAvailable: boolean;
+  historicalMonths: number;
+  minimumRequired: number;
+  drivers: {
+    avgCmvPercent: number;
+    avgTaxPercent: number;
+    avgFixed: number;
+    avgVariable: number;
+    revenueGrowthRate: number;
+  };
+  scenario: string;
+}
+
+interface ForecastData {
+  historical: any[];
+  forecast: ForecastPoint[];
+  metadata: ForecastMetadata;
+}
+
+type ForecastScenario = 'realistic' | 'optimistic' | 'pessimistic';
 
 const SCENARIO_TYPES: { value: ScenarioType; label: string; color: string }[] = [
   { value: 'PROJECT', label: 'Projeto', color: 'bg-purple-100 text-purple-700' },
@@ -336,6 +367,11 @@ export default function Dashboard() {
   const [showNewForm, setShowNewForm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Forecast state
+  const [forecastData, setForecastData] = useState<ForecastData | null>(null);
+  const [forecastScenario, setForecastScenario] = useState<ForecastScenario>('realistic');
+  const [isForecastLoading, setIsForecastLoading] = useState(false);
+
   // Sidebar tabs & detail view
   const [activeTab, setActiveTab] = useState<SidebarTab>('scenarios');
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
@@ -350,9 +386,28 @@ export default function Dashboard() {
     loadData();
   }, []);
 
+  // Reload forecast when scenario changes
+  useEffect(() => {
+    loadForecast(forecastScenario);
+  }, [forecastScenario]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  const loadForecast = async (scenario: ForecastScenario) => {
+    setIsForecastLoading(true);
+    try {
+      const res = await forecastApi.get(6, scenario);
+      const data = res.data.data || res.data;
+      setForecastData(data);
+    } catch (err) {
+      console.error('Erro ao carregar forecast:', err);
+      setForecastData(null);
+    } finally {
+      setIsForecastLoading(false);
+    }
+  };
 
   const loadData = async () => {
     setIsLoading(true);
@@ -477,9 +532,33 @@ Pedido do usuário: ${userMsg}`;
   const transactionCount = dashData?.transactionCount || 0;
 
 
+  // Build 12-month sliding window: 5 past + current + 6 forecast
   const cashflowData: CashflowDataPoint[] = useMemo(() => {
-    return cashflowRaw.map(c => ({ month: c.month, income: c.income || 0, expense: Math.abs(c.expense || c.expenses || 0), net: c.net || 0 }));
-  }, [cashflowRaw]);
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // Historical data (up to current month)
+    const historical = cashflowRaw
+      .map(c => ({ month: c.month, income: c.income || 0, expense: Math.abs(c.expense || c.expenses || 0), net: c.net || 0 }))
+      .filter(c => c.month <= currentMonth)
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    // Take last 6 months of historical (5 past + current)
+    const recentHistorical = historical.slice(-6);
+
+    // Forecast data (future months only)
+    const forecastPoints: CashflowDataPoint[] = (forecastData?.forecast || [])
+      .filter(f => f.month > currentMonth)
+      .slice(0, 6)
+      .map(f => ({
+        month: f.month,
+        income: f.income || 0,
+        expense: Math.abs(f.expense || 0),
+        net: f.net || 0,
+      }));
+
+    return [...recentHistorical, ...forecastPoints];
+  }, [cashflowRaw, forecastData]);
 
   const chartScenarios: ChartScenario[] = useMemo(() => {
     return scenarios.map(s => ({ id: s.id, name: s.name, type: s.type, isActive: s.isActive, adjustments: s.adjustments || {} }));
@@ -487,8 +566,12 @@ Pedido do usuário: ${userMsg}`;
 
   const forecastStartMonth = useMemo(() => {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    // First forecast month is next month
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
   }, []);
+
+  const forecastAvailable = forecastData?.metadata?.forecastAvailable ?? false;
 
   // ExplainButton agora está integrado diretamente nos componentes
 
@@ -634,6 +717,80 @@ Pedido do usuário: ${userMsg}`;
               {/* ===== TAB: SCENARIOS ===== */}
               {activeTab === 'scenarios' && (
                 <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+                  {/* ===== FORECAST SECTION ===== */}
+                  {!selectedScenario && (
+                    <div className="mb-3">
+                      <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1">Previsões de Fluxo de Caixa</h4>
+                      {!forecastAvailable ? (
+                        <div className="text-center py-5 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+                          <BarChart3 className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                          <p className="text-xs font-medium text-slate-400">Nenhuma Previsão de Forecast</p>
+                          <p className="text-[10px] text-slate-300 mt-1 px-4">
+                            Não há dados históricos suficientes para realizar previsões de caixa
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {(['optimistic', 'realistic', 'pessimistic'] as ForecastScenario[]).map((sc) => {
+                            const labels: Record<ForecastScenario, { name: string; desc: string; color: string; activeColor: string; icon: string }> = {
+                              optimistic: { name: 'Previsão Otimista', desc: 'Receita +15%, CMV -2pp', color: 'text-emerald-600', activeColor: 'border-emerald-200 bg-emerald-50/50', icon: '📈' },
+                              realistic: { name: 'Previsão Realista', desc: 'Baseada no histórico', color: 'text-blue-600', activeColor: 'border-blue-200 bg-blue-50/50', icon: '📊' },
+                              pessimistic: { name: 'Previsão Pessimista', desc: 'Receita -15%, CMV +2pp', color: 'text-amber-600', activeColor: 'border-amber-200 bg-amber-50/50', icon: '📉' },
+                            };
+                            const info = labels[sc];
+                            const isActive = forecastScenario === sc;
+                            return (
+                              <div
+                                key={sc}
+                                className={`flex items-center justify-between p-2.5 rounded-lg border transition-all cursor-pointer ${
+                                  isActive ? info.activeColor : 'border-slate-100 bg-white hover:bg-slate-50'
+                                }`}
+                                onClick={() => setForecastScenario(sc)}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm">{info.icon}</span>
+                                  <div>
+                                    <span className={`text-xs font-medium ${isActive ? info.color : 'text-slate-700'}`}>{info.name}</span>
+                                    <p className="text-[10px] text-slate-400">{info.desc}</p>
+                                  </div>
+                                </div>
+                                <button onClick={(e) => { e.stopPropagation(); setForecastScenario(sc); }}>
+                                  {isActive
+                                    ? <ToggleRight className={`w-6 h-6 ${info.color}`} />
+                                    : <ToggleLeft className="w-6 h-6 text-slate-300" />}
+                                </button>
+                              </div>
+                            );
+                          })}
+                          {forecastData?.metadata?.drivers && (
+                            <div className="mt-2 px-2 py-2 bg-slate-50 rounded-lg">
+                              <p className="text-[10px] font-medium text-slate-400 uppercase mb-1.5">Drivers do modelo</p>
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+                                <span className="text-slate-400">CMV médio</span>
+                                <span className="text-slate-600 font-medium text-right">{(forecastData.metadata.drivers.avgCmvPercent * 100).toFixed(1)}%</span>
+                                <span className="text-slate-400">Impostos</span>
+                                <span className="text-slate-600 font-medium text-right">{(forecastData.metadata.drivers.avgTaxPercent * 100).toFixed(1)}%</span>
+                                <span className="text-slate-400">Custos fixos</span>
+                                <span className="text-slate-600 font-medium text-right">{formatCurrency(forecastData.metadata.drivers.avgFixed)}</span>
+                                <span className="text-slate-400">Custos variáveis</span>
+                                <span className="text-slate-600 font-medium text-right">{formatCurrency(forecastData.metadata.drivers.avgVariable)}</span>
+                                <span className="text-slate-400">Cresc. receita</span>
+                                <span className="text-slate-600 font-medium text-right">{(forecastData.metadata.drivers.revenueGrowthRate * 100).toFixed(1)}%/mês</span>
+                              </div>
+                            </div>
+                          )}
+                          {isForecastLoading && (
+                            <div className="flex items-center justify-center gap-2 py-2">
+                              <Loader2 className="w-3 h-3 text-blue-500 animate-spin" />
+                              <span className="text-[10px] text-slate-400">Calculando previsão...</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="border-b border-slate-100 mt-3 mb-1" />
+                    </div>
+                  )}
+
                   {/* Detail view of a selected scenario */}
                   {selectedScenario ? (
                     <ScenarioDetail

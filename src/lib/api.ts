@@ -138,6 +138,14 @@ export const alertsApi = {
 };
 
 // ============================================
+// FORECAST
+// ============================================
+export const forecastApi = {
+  get: (months: number = 6, scenario: string = 'realistic') =>
+    api.get(`/forecast?months=${months}&scenario=${scenario}`),
+};
+
+// ============================================
 // HEALTH
 // ============================================
 export const healthApi = {
