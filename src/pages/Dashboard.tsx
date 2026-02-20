@@ -507,7 +507,8 @@ Pedido do usuário: ${userMsg}`;
         {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>}
 
         <AlertsBanner onViewAll={() => setAlertsPanelOpen(true)} />
-\n        {/* Banner de Classificações Pendentes */}
+
+        {/* Banner de Classificações Pendentes */}
         {pendingCostClassifications > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 flex items-center gap-3">
             <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
