@@ -633,7 +633,7 @@ export default function Dashboards() {
     fetchPendingCostClassifications();
       );
     fetchPendingCostClassifications();
-      setTransactions(res.data.data?.transactions || res.data.transactions || res.data.data || []);
+      setTransactions(res.data.data || []);
     fetchPendingCostClassifications();
     } catch (err) {
     fetchPendingCostClassifications();
