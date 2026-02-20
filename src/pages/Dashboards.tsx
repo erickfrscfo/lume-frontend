@@ -523,6 +523,8 @@ export default function Dashboards() {
   const [pendingClassifications, setPendingClassifications] = useState<any[]>([]);
   const [showCostModal, setShowCostModal] = useState(false);
   const [isClassifying, setIsClassifying] = useState(false);
+  const [txCategoryFilter, setTxCategoryFilter] = useState<string>('all');
+  const [txCostTypeFilter, setTxCostTypeFilter] = useState<'all' | 'FIXO' | 'VARIAVEL'>('all');
 
   useEffect(() => {
     loadData();
@@ -745,6 +747,27 @@ export default function Dashboards() {
     }));
   }, [dreData]);
 
+  // Categorias únicas para o filtro de categoria
+  const uniqueCategories = useMemo(() => {
+    const cats = new Set<string>();
+    transactions.forEach(t => {
+      if (t.category?.name) cats.add(t.category.name);
+    });
+    return Array.from(cats).sort();
+  }, [transactions]);
+
+  // Transações filtradas localmente por categoria e tipo de custo
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      if (txCategoryFilter !== 'all' && t.category?.name !== txCategoryFilter) return false;
+      if (txCostTypeFilter !== 'all') {
+        if (!t.tipo_custo) return false;
+        if (t.tipo_custo !== txCostTypeFilter) return false;
+      }
+      return true;
+    });
+  }, [transactions, txCategoryFilter, txCostTypeFilter]);
+
   if (isLoading) return <LoadingSpinner message="Carregando dashboards..." />;
 
   return (
@@ -933,16 +956,6 @@ export default function Dashboards() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-slate-900">Transações</h3>
               <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-slate-400" />
-                <select
-                  value={txFilter}
-                  onChange={(e) => { setTxFilter(e.target.value as any); setTxPage(1); }}
-                  className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">Todas</option>
-                  <option value="INCOME">Receitas</option>
-                  <option value="EXPENSE">Despesas</option>
-                </select>
                 <button
                   onClick={exportToExcel}
                   disabled={isExporting}
@@ -957,6 +970,51 @@ export default function Dashboards() {
                 </button>
               </div>
             </div>
+
+            {/* Linha de filtros */}
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <div className="flex items-center gap-1.5">
+                <Filter className="w-4 h-4 text-slate-400" />
+                <span className="text-xs text-slate-500 font-medium">Filtros:</span>
+              </div>
+              <select
+                value={txFilter}
+                onChange={(e) => { setTxFilter(e.target.value as any); setTxPage(1); }}
+                className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="all">Todas</option>
+                <option value="INCOME">Receitas</option>
+                <option value="EXPENSE">Despesas</option>
+              </select>
+              <select
+                value={txCategoryFilter}
+                onChange={(e) => { setTxCategoryFilter(e.target.value); }}
+                className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white max-w-[200px]"
+              >
+                <option value="all">Todas Categorias</option>
+                {uniqueCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <select
+                value={txCostTypeFilter}
+                onChange={(e) => { setTxCostTypeFilter(e.target.value as any); }}
+                className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="all">Fixo/Variável</option>
+                <option value="FIXO">Custo Fixo</option>
+                <option value="VARIAVEL">Custo Variável</option>
+              </select>
+              {(txCategoryFilter !== 'all' || txCostTypeFilter !== 'all') && (
+                <button
+                  onClick={() => { setTxCategoryFilter('all'); setTxCostTypeFilter('all'); }}
+                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                >
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+
             <DateRangePicker
               startDate={txStartDate}
               endDate={txEndDate}
@@ -978,18 +1036,21 @@ export default function Dashboards() {
                   <th className="text-left py-3 px-6 text-slate-500 font-medium">Data</th>
                   <th className="text-left py-3 px-4 text-slate-500 font-medium">Descrição</th>
                   <th className="text-left py-3 px-4 text-slate-500 font-medium">Categoria</th>
+                  <th className="text-left py-3 px-4 text-slate-500 font-medium">Tipo Custo</th>
                   <th className="text-right py-3 px-6 text-slate-500 font-medium">Valor</th>
                 </tr>
               </thead>
               <tbody>
-                {transactions.length === 0 ? (
+                {filteredTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-12 text-center text-slate-400">
-                      Nenhuma transação encontrada. Importe um CSV ou adicione manualmente.
+                    <td colSpan={5} className="py-12 text-center text-slate-400">
+                      {transactions.length === 0
+                        ? 'Nenhuma transação encontrada. Importe um CSV ou adicione manualmente.'
+                        : 'Nenhuma transação corresponde aos filtros selecionados.'}
                     </td>
                   </tr>
                 ) : (
-                  transactions.map((tx) => (
+                  filteredTransactions.map((tx) => (
                     <tr key={tx.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="py-3 px-6 text-slate-600">{formatDate(tx.date)}</td>
                       <td className="py-3 px-4 text-slate-900">{tx.description}</td>
@@ -997,6 +1058,21 @@ export default function Dashboards() {
                         <span className="text-xs px-2 py-1 bg-slate-100 rounded-full text-slate-600">
                           {tx.category?.name || 'Sem categoria'}
                         </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {getTxType(tx) === 'EXPENSE' && tx.tipo_custo ? (
+                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                            tx.tipo_custo === 'FIXO'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            {tx.tipo_custo === 'FIXO' ? 'Fixo' : 'Variável'}
+                          </span>
+                        ) : getTxType(tx) === 'INCOME' ? (
+                          <span className="text-xs text-slate-300">—</span>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Não classificado</span>
+                        )}
                       </td>
                       <td className={`py-3 px-6 text-right font-medium ${
                         getTxType(tx) === 'INCOME' ? 'text-emerald-600' : 'text-red-600'
@@ -1010,22 +1086,29 @@ export default function Dashboards() {
             </table>
           </div>
           {transactions.length > 0 && (
-            <div className="p-4 flex items-center justify-center gap-2">
-              <button
-                onClick={() => setTxPage(p => Math.max(1, p - 1))}
-                disabled={txPage === 1}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50 hover:bg-slate-50"
-              >
-                Anterior
-              </button>
-              <span className="text-sm text-slate-500">Página {txPage}</span>
-              <button
-                onClick={() => setTxPage(p => p + 1)}
-                disabled={transactions.length < 50}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50 hover:bg-slate-50"
-              >
-                Próxima
-              </button>
+            <div className="p-4 flex items-center justify-between">
+              <span className="text-xs text-slate-400">
+                {filteredTransactions.length !== transactions.length
+                  ? `Mostrando ${filteredTransactions.length} de ${transactions.length} transações`
+                  : `${transactions.length} transações`}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTxPage(p => Math.max(1, p - 1))}
+                  disabled={txPage === 1}
+                  className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50 hover:bg-slate-50"
+                >
+                  Anterior
+                </button>
+                <span className="text-sm text-slate-500">Página {txPage}</span>
+                <button
+                  onClick={() => setTxPage(p => p + 1)}
+                  disabled={transactions.length < 50}
+                  className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50 hover:bg-slate-50"
+                >
+                  Próxima
+                </button>
+              </div>
             </div>
           )}
         </div>
