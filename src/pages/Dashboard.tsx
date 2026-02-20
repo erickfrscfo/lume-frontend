@@ -762,23 +762,34 @@ Pedido do usuário: ${userMsg}`;
                               </div>
                             );
                           })}
-                          {forecastData?.metadata?.drivers && (
+                          {forecastData?.metadata?.drivers && (() => {
+                            const d = forecastData.metadata.drivers;
+                            // Ajustar drivers conforme cenário ativo
+                            const scenarioAdjustments: Record<ForecastScenario, { cmvDelta: number; revGrowthLabel: string }> = {
+                              optimistic: { cmvDelta: -2, revGrowthLabel: `${d.revenueGrowthRate.toFixed(1)}% + 15%` },
+                              realistic: { cmvDelta: 0, revGrowthLabel: `${d.revenueGrowthRate.toFixed(1)}%/mês` },
+                              pessimistic: { cmvDelta: 2, revGrowthLabel: `${d.revenueGrowthRate.toFixed(1)}% - 15%` },
+                            };
+                            const adj = scenarioAdjustments[forecastScenario];
+                            const displayCmv = d.avgCmvPercent + adj.cmvDelta;
+                            return (
                             <div className="mt-2 px-2 py-2 bg-slate-50 rounded-lg">
                               <p className="text-[10px] font-medium text-slate-400 uppercase mb-1.5">Drivers do modelo</p>
                               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
                                 <span className="text-slate-400">CMV médio</span>
-                                <span className="text-slate-600 font-medium text-right">{forecastData.metadata.drivers.avgCmvPercent.toFixed(1)}%</span>
+                                <span className={`font-medium text-right ${adj.cmvDelta < 0 ? 'text-emerald-600' : adj.cmvDelta > 0 ? 'text-amber-600' : 'text-slate-600'}`}>{displayCmv.toFixed(1)}%{adj.cmvDelta !== 0 ? ` (${adj.cmvDelta > 0 ? '+' : ''}${adj.cmvDelta}pp)` : ''}</span>
                                 <span className="text-slate-400">Impostos</span>
-                                <span className="text-slate-600 font-medium text-right">{forecastData.metadata.drivers.avgTaxPercent.toFixed(1)}%</span>
+                                <span className="text-slate-600 font-medium text-right">{d.avgTaxPercent.toFixed(1)}%</span>
                                 <span className="text-slate-400">Custos fixos</span>
-                                <span className="text-slate-600 font-medium text-right">{formatCurrency(forecastData.metadata.drivers.avgFixed)}</span>
+                                <span className="text-slate-600 font-medium text-right">{formatCurrency(d.avgFixed)}</span>
                                 <span className="text-slate-400">Custos variáveis</span>
-                                <span className="text-slate-600 font-medium text-right">{formatCurrency(forecastData.metadata.drivers.avgVariable)}</span>
+                                <span className="text-slate-600 font-medium text-right">{formatCurrency(d.avgVariable)}</span>
                                 <span className="text-slate-400">Cresc. receita</span>
-                                <span className="text-slate-600 font-medium text-right">{forecastData.metadata.drivers.revenueGrowthRate.toFixed(1)}%/mês</span>
+                                <span className={`font-medium text-right ${forecastScenario === 'optimistic' ? 'text-emerald-600' : forecastScenario === 'pessimistic' ? 'text-amber-600' : 'text-slate-600'}`}>{adj.revGrowthLabel}</span>
                               </div>
                             </div>
-                          )}
+                            );
+                          })()}
                           {isForecastLoading && (
                             <div className="flex items-center justify-center gap-2 py-2">
                               <Loader2 className="w-3 h-3 text-blue-500 animate-spin" />
