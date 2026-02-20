@@ -317,19 +317,16 @@ function DRETable({
   const revenueDetails = useMemo(
     () => extractCategoryDetails(rawDreData, monthKeys, ['1', '2']),
     [rawDreData, monthKeys]
-      </>
   );
 
   const cogsDetails = useMemo(
     () => extractCategoryDetails(rawDreData, monthKeys, ['3']),
     [rawDreData, monthKeys]
-      </>
   );
 
   const opexSubgroups = useMemo(
     () => extractOpexSubgroups(rawDreData, monthKeys),
     [rawDreData, monthKeys]
-      </>
   );
 
   if (dreData.length === 0) {
@@ -510,7 +507,6 @@ function DRETable({
         </tbody>
       </table>
     </div>
-      </>
   );
 }
 
@@ -926,6 +922,5 @@ export default function Dashboards() {
         </div>
       )}
     </div>
-      </>
   );
 }
