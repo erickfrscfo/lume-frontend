@@ -331,6 +331,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [scenariosOpen, setScenariosOpen] = useState(true);
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
+  const [pendingCostClassifications, setPendingCostClassifications] = useState(0);
   const [error, setError] = useState('');
   const [showNewForm, setShowNewForm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -506,6 +507,22 @@ Pedido do usuário: ${userMsg}`;
         {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>}
 
         <AlertsBanner onViewAll={() => setAlertsPanelOpen(true)} />
+\n        {/* Banner de Classificações Pendentes */}
+        {pendingCostClassifications > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 flex items-center gap-3">
+            <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Info className="w-4 h-4 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-amber-900">
+                <span className="font-semibold">{pendingCostClassifications} saída{pendingCostClassifications !== 1 ? "s" : ""} não classificada{pendingCostClassifications !== 1 ? "s" : ""}</span> — A IA classificou automaticamente, mas precisa da sua revisão.
+              </p>
+            </div>
+            <a href="/dashboards" className="text-xs font-medium text-amber-700 hover:text-amber-900 border border-amber-300 bg-white rounded-md px-3 py-1.5 transition-colors">
+              Revisar
+            </a>
+          </div>
+        )}
 
         {/* Dica fixa sobre Explica pra mim */}
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-3 flex items-center gap-3">

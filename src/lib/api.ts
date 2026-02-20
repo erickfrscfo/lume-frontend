@@ -70,6 +70,9 @@ export const financialApi = {
     notes?: string;
   }) => api.post('/financial/transactions', data),
   deleteTransaction: (id: string) => api.delete(`/financial/transactions/${id}`),
+// NOVO: Buscar breakdown de custos
+ costBreakdown: (months: number = 6) =>
+ api.get(`/api/financial/cost-breakdown?months=${months}`),
 };
 
 // ============================================
@@ -96,6 +99,15 @@ export const aiApi = {
   explain: (metric: string, value: string, context?: string) =>
     api.post('/ai/explain', { metric, value, context }),
   chatHistory: () => api.get('/ai/chat/history'),
+// NOVO: Buscar classificações pendentes
+ getPendingCostClassifications: ( ) =>
+ api.get('/api/ai/pending-cost-classifications'),
+// NOVO: Classificar tipo de custo
+ classifyCostType: (transactionIds: string[]) =>
+ api.post('/api/ai/classify-cost-type', { transactionIds }),
+// NOVO: Atualizar tipo de custo manualmente
+ updateCostType: (transactionId: string, costType: 'FIXO' | 'VARIAVEL') =>
+ api.put(`/api/ai/update-cost-type/${transactionId}`, { costType }),
 };
 
 // ============================================
