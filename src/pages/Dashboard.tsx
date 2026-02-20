@@ -767,15 +767,15 @@ Pedido do usuário: ${userMsg}`;
                               <p className="text-[10px] font-medium text-slate-400 uppercase mb-1.5">Drivers do modelo</p>
                               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
                                 <span className="text-slate-400">CMV médio</span>
-                                <span className="text-slate-600 font-medium text-right">{(forecastData.metadata.drivers.avgCmvPercent * 100).toFixed(1)}%</span>
+                                <span className="text-slate-600 font-medium text-right">{forecastData.metadata.drivers.avgCmvPercent.toFixed(1)}%</span>
                                 <span className="text-slate-400">Impostos</span>
-                                <span className="text-slate-600 font-medium text-right">{(forecastData.metadata.drivers.avgTaxPercent * 100).toFixed(1)}%</span>
+                                <span className="text-slate-600 font-medium text-right">{forecastData.metadata.drivers.avgTaxPercent.toFixed(1)}%</span>
                                 <span className="text-slate-400">Custos fixos</span>
                                 <span className="text-slate-600 font-medium text-right">{formatCurrency(forecastData.metadata.drivers.avgFixed)}</span>
                                 <span className="text-slate-400">Custos variáveis</span>
                                 <span className="text-slate-600 font-medium text-right">{formatCurrency(forecastData.metadata.drivers.avgVariable)}</span>
                                 <span className="text-slate-400">Cresc. receita</span>
-                                <span className="text-slate-600 font-medium text-right">{(forecastData.metadata.drivers.revenueGrowthRate * 100).toFixed(1)}%/mês</span>
+                                <span className="text-slate-600 font-medium text-right">{forecastData.metadata.drivers.revenueGrowthRate.toFixed(1)}%/mês</span>
                               </div>
                             </div>
                           )}
