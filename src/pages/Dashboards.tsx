@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { aiApi } from '@/lib/api';
-import { financialApi } from '@/lib/api';
+import { aiApi, financialApi } from '@/lib/api';
 import { formatCurrency, formatCurrencyFull, formatDate } from '@/lib/utils';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import {
@@ -9,7 +8,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight,
-  ChevronDown, ChevronUp, ChevronRight, Filter, Info
+  ChevronDown, ChevronUp, ChevronRight, Filter, Info, Download, Loader2
 } from 'lucide-react';
 import { ExplainButton } from '@/components/ExplainModal';
 import DateRangePicker from '@/components/DateRangePicker';
@@ -331,14 +330,6 @@ function DRETable({
 
   if (dreData.length === 0) {
     return (
-    <>
-      <CostClassificationModal
-        isOpen={showCostModal}
-        transactions={pendingTransactions}
-        onClose={() => setShowCostModal(false)}
-        onClassify={classifyAllPending}
-        isClassifying={isClassifying}
-      />
       <div className="flex flex-col items-center justify-center py-16 text-slate-400">
         <Info className="w-10 h-10 mb-3" />
         <p className="text-sm font-medium">Nenhum dado para o DRE</p>
@@ -389,14 +380,6 @@ function DRETable({
   };
 
   return (
-    <>
-      <CostClassificationModal
-        isOpen={showCostModal}
-        transactions={pendingTransactions}
-        onClose={() => setShowCostModal(false)}
-        onClassify={classifyAllPending}
-        isClassifying={isClassifying}
-      />
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
@@ -528,754 +511,517 @@ export default function Dashboards() {
   const [txEndDate, setTxEndDate] = useState('');
   const [appliedStartDate, setAppliedStartDate] = useState('');
   const [appliedEndDate, setAppliedEndDate] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [pendingClassifications, setPendingClassifications] = useState<any[]>([]);
   const [showCostModal, setShowCostModal] = useState(false);
-  const [pendingTransactions, setPendingTransactions] = useState<any[]>([]);
   const [isClassifying, setIsClassifying] = useState(false);
 
   useEffect(() => {
-    fetchPendingCostClassifications();
     loadData();
     fetchPendingCostClassifications();
   }, []);
 
   useEffect(() => {
-    fetchPendingCostClassifications();
     loadTransactions();
-    fetchPendingCostClassifications();
   }, [txPage, txFilter, appliedStartDate, appliedEndDate]);
-    fetchPendingCostClassifications();
 
-    fetchPendingCostClassifications();
-  const classifyAllPending = async () => {
-    setIsClassifying(true);
+  const loadData = async () => {
+    setIsLoading(true);
     try {
-      await aiApi.classifyCostType([]);
-      await fetchPendingCostClassifications();
-      await loadTransactions();
-      setShowCostModal(false);
+      const [dreRes] = await Promise.allSettled([
+        financialApi.dre(12),
+      ]);
+      if (dreRes.status === 'fulfilled') {
+        const raw = dreRes.value.data.data || dreRes.value.data || {};
+        setRawDreData(raw);
+        const { rows, monthKeys: mks } = transformDREData(raw);
+        setDreData(rows);
+        setMonthKeys(mks);
+      }
     } catch (err) {
-      console.error("Erro ao classificar custos:", err);
+      console.error('Erro ao carregar dados:', err);
     } finally {
-      setIsClassifying(false);
+      setIsLoading(false);
+    }
+  };
+
+  const loadTransactions = async () => {
+    try {
+      const res = await financialApi.transactions(
+        txPage,
+        txFilter === 'all' ? undefined : txFilter,
+        appliedStartDate || undefined,
+        appliedEndDate || undefined
+      );
+      setTransactions(res.data.data || []);
+    } catch (err) {
+      console.error('Erro ao carregar transações:', err);
     }
   };
 
   const fetchPendingCostClassifications = async () => {
     try {
       const res = await aiApi.getPendingCostClassifications();
-      const pending = res.data.data?.transactions || [];
-      setPendingTransactions(pending);
-      if (pending.length > 0) {
+      const data = res.data.data || res.data || [];
+      if (Array.isArray(data) && data.length > 0) {
+        setPendingClassifications(data);
         setShowCostModal(true);
       }
     } catch (err) {
-      console.error("Erro ao buscar classificações pendentes:", err);
+      console.error('Erro ao buscar classificações pendentes:', err);
     }
   };
 
-  const loadData = async () => {
-    fetchPendingCostClassifications();
-    setIsLoading(true);
-    fetchPendingCostClassifications();
+  const handleClassifyAll = async () => {
+    setIsClassifying(true);
     try {
-    fetchPendingCostClassifications();
-      const [dreRes] = await Promise.allSettled([
-    fetchPendingCostClassifications();
-        financialApi.dre(12),
-    fetchPendingCostClassifications();
-      ]);
-    fetchPendingCostClassifications();
-      if (dreRes.status === 'fulfilled') {
-    fetchPendingCostClassifications();
-        const raw = dreRes.value.data.data || dreRes.value.data || {};
-    fetchPendingCostClassifications();
-        setRawDreData(raw);
-    fetchPendingCostClassifications();
-        const { rows, monthKeys: mks } = transformDREData(raw);
-    fetchPendingCostClassifications();
-        setDreData(rows);
-    fetchPendingCostClassifications();
-        setMonthKeys(mks);
-    fetchPendingCostClassifications();
-      }
-    fetchPendingCostClassifications();
+      const ids = pendingClassifications.map((t: any) => t.id);
+      await aiApi.classifyCostType(ids);
+      setPendingClassifications([]);
+      setShowCostModal(false);
+      loadTransactions();
     } catch (err) {
-    fetchPendingCostClassifications();
-      console.error('Erro ao carregar dados:', err);
-    fetchPendingCostClassifications();
+      console.error('Erro ao classificar custos:', err);
     } finally {
-    fetchPendingCostClassifications();
-      setIsLoading(false);
-    fetchPendingCostClassifications();
+      setIsClassifying(false);
     }
-    fetchPendingCostClassifications();
   };
-    fetchPendingCostClassifications();
 
-    fetchPendingCostClassifications();
-  const loadTransactions = async () => {
-    fetchPendingCostClassifications();
-    try {
-    fetchPendingCostClassifications();
-      const res = await financialApi.transactions(
-    fetchPendingCostClassifications();
-        txPage,
-    fetchPendingCostClassifications();
-        txFilter === 'all' ? undefined : txFilter,
-    fetchPendingCostClassifications();
-        appliedStartDate || undefined,
-    fetchPendingCostClassifications();
-        appliedEndDate || undefined
-    fetchPendingCostClassifications();
-      );
-    fetchPendingCostClassifications();
-      setTransactions(res.data.data?.transactions || res.data.transactions || res.data.data || []);
-    fetchPendingCostClassifications();
-    } catch (err) {
-    fetchPendingCostClassifications();
-      console.error('Erro ao carregar transações:', err);
-    fetchPendingCostClassifications();
-    }
-    fetchPendingCostClassifications();
-  };
-    fetchPendingCostClassifications();
-
-    fetchPendingCostClassifications();
   const applyDateFilter = () => {
-    fetchPendingCostClassifications();
     setAppliedStartDate(txStartDate);
-    fetchPendingCostClassifications();
     setAppliedEndDate(txEndDate);
-    fetchPendingCostClassifications();
     setTxPage(1);
-    fetchPendingCostClassifications();
   };
-    fetchPendingCostClassifications();
 
-    fetchPendingCostClassifications();
   const clearDateFilter = () => {
-    fetchPendingCostClassifications();
     setTxStartDate('');
-    fetchPendingCostClassifications();
     setTxEndDate('');
-    fetchPendingCostClassifications();
     setAppliedStartDate('');
-    fetchPendingCostClassifications();
     setAppliedEndDate('');
-    fetchPendingCostClassifications();
     setTxPage(1);
-    fetchPendingCostClassifications();
   };
-    fetchPendingCostClassifications();
 
-    fetchPendingCostClassifications();
+  // ============================================
+  // EXPORT TO EXCEL
+  // Busca TODAS as páginas respeitando filtros ativos
+  // ============================================
+  const exportToExcel = async () => {
+    setIsExporting(true);
+    try {
+      // Buscar todas as transações paginadas com os filtros atuais
+      const allTransactions: Transaction[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const res = await financialApi.transactions(
+          page,
+          txFilter === 'all' ? undefined : txFilter,
+          appliedStartDate || undefined,
+          appliedEndDate || undefined
+        );
+        const txs = res.data.data || [];
+        allTransactions.push(...txs);
+        hasMore = txs.length >= 50;
+        page++;
+        // Safety: max 100 pages (5000 transações)
+        if (page > 100) break;
+      }
+
+      if (allTransactions.length === 0) {
+        alert('Nenhuma transação para exportar com os filtros atuais.');
+        return;
+      }
+
+      // Importar SheetJS dinamicamente
+      const XLSX = await import('xlsx');
+
+      // Formatar dados conforme especificação:
+      // Ordem: Data, Tipo, Categoria, Descrição, Valor
+      // Data: DD/MM/AAAA | Valor: negativo, formato R$xx,xx
+      const rows = allTransactions.map((tx) => {
+        // Formatar data DD/MM/AAAA
+        const d = new Date(tx.date + (tx.date.includes('T') ? '' : 'T00:00:00'));
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        const dataFormatada = `${dd}/${mm}/${yyyy}`;
+
+        // Tipo legível
+        const tipo = tx.type === 'INCOME' ? 'Receita' : 'Despesa';
+
+        // Categoria
+        const categoria = tx.category?.name || 'Sem categoria';
+
+        // Descrição
+        const descricao = tx.description;
+
+        // Valor: sempre negativo para despesas, positivo para receitas
+        // Formato monetário R$xx,xx
+        const valorNum = Math.abs(tx.amount);
+        const valorFinal = tx.type === 'EXPENSE' ? -valorNum : valorNum;
+        const valorFormatado = `R$ ${valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        return {
+          'Data': dataFormatada,
+          'Tipo': tipo,
+          'Categoria': categoria,
+          'Descrição': descricao,
+          'Valor': valorFormatado,
+        };
+      });
+
+      // Criar workbook e worksheet
+      const ws = XLSX.utils.json_to_sheet(rows);
+
+      // Ajustar largura das colunas
+      ws['!cols'] = [
+        { wch: 12 },  // Data
+        { wch: 10 },  // Tipo
+        { wch: 30 },  // Categoria
+        { wch: 50 },  // Descrição
+        { wch: 18 },  // Valor
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Transações');
+
+      // Gerar nome do arquivo com filtros aplicados
+      const parts = ['transacoes'];
+      if (txFilter !== 'all') parts.push(txFilter === 'INCOME' ? 'receitas' : 'despesas');
+      if (appliedStartDate) parts.push(`de_${appliedStartDate}`);
+      if (appliedEndDate) parts.push(`ate_${appliedEndDate}`);
+      const fileName = `${parts.join('_')}.xlsx`;
+
+      // Download
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error('Erro ao exportar:', err);
+      alert('Erro ao exportar transações. Tente novamente.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Agrupar despesas por categoria para pie chart
-    fetchPendingCostClassifications();
   const expensesByCategory = useMemo(() => {
-    fetchPendingCostClassifications();
     return transactions
-    fetchPendingCostClassifications();
       .filter(t => t.type === 'EXPENSE')
-    fetchPendingCostClassifications();
       .reduce((acc, t) => {
-    fetchPendingCostClassifications();
         const cat = t.category?.name || 'Outros';
-    fetchPendingCostClassifications();
         acc[cat] = (acc[cat] || 0) + Math.abs(t.amount);
-    fetchPendingCostClassifications();
         return acc;
-    fetchPendingCostClassifications();
       }, {} as Record<string, number>);
-    fetchPendingCostClassifications();
   }, [transactions]);
-    fetchPendingCostClassifications();
 
-    fetchPendingCostClassifications();
   const pieData = useMemo(() => {
-    fetchPendingCostClassifications();
     return Object.entries(expensesByCategory)
-    fetchPendingCostClassifications();
       .map(([name, value]) => ({ name, value }))
-    fetchPendingCostClassifications();
       .sort((a, b) => b.value - a.value)
-    fetchPendingCostClassifications();
       .slice(0, 8);
-    fetchPendingCostClassifications();
   }, [expensesByCategory]);
-    fetchPendingCostClassifications();
 
-    fetchPendingCostClassifications();
   // Dados para gráfico de Tendência de Receita
-    fetchPendingCostClassifications();
   const revenueChartData = useMemo(() => {
-    fetchPendingCostClassifications();
     if (dreData.length > 0) return dreData;
-    fetchPendingCostClassifications();
     return [];
-    fetchPendingCostClassifications();
   }, [dreData]);
-    fetchPendingCostClassifications();
 
-    fetchPendingCostClassifications();
   // Dados para gráfico de Margens (percentuais)
-    fetchPendingCostClassifications();
   const marginsChartData = useMemo(() => {
-    fetchPendingCostClassifications();
     return dreData.map(d => ({
-    fetchPendingCostClassifications();
       month: d.month,
-    fetchPendingCostClassifications();
       margemBruta: d.revenue > 0 ? ((d.grossProfit / d.revenue) * 100) : 0,
-    fetchPendingCostClassifications();
       ebitda: d.revenue > 0 ? ((d.ebitda / d.revenue) * 100) : 0,
-    fetchPendingCostClassifications();
       lucroLiquido: d.revenue > 0 ? ((d.netIncome / d.revenue) * 100) : 0,
-    fetchPendingCostClassifications();
     }));
-    fetchPendingCostClassifications();
   }, [dreData]);
-    fetchPendingCostClassifications();
 
-    fetchPendingCostClassifications();
   if (isLoading) return <LoadingSpinner message="Carregando dashboards..." />;
-    fetchPendingCostClassifications();
 
-    fetchPendingCostClassifications();
   return (
-    <>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Dashboards</h2>
+          <p className="text-sm text-slate-500 mt-1">Visão detalhada das finanças</p>
+        </div>
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+          {[
+            { id: 'overview' as const, label: 'Visão Geral' },
+            { id: 'dre' as const, label: 'DRE' },
+            { id: 'transactions' as const, label: 'Transações' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveView(tab.id)}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                activeView === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ========== OVERVIEW ========== */}
+      {activeView === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Revenue Trend */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-slate-900">Tendência de Receita</h3>
+              {revenueChartData.length > 0 && (
+                <ExplainButton
+                  metric="Tendência de Receita"
+                  value={`Último mês: ${formatCurrency(revenueChartData[revenueChartData.length - 1]?.revenue || 0)}`}
+                  context={`Evolução da receita mensal:\n${revenueChartData.map(d => `${d.month}: R$ ${d.revenue.toLocaleString('pt-BR')}`).join('\n')}`}
+                  variant="icon"
+                />
+              )}
+            </div>
+            {revenueChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <AreaChart data={revenueChartData}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                  <Area type="monotone" dataKey="revenue" stroke="#10b981" fill="url(#colorRevenue)" strokeWidth={2} name="Receita" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[250px] text-slate-400">
+                <Info className="w-8 h-8 mb-2" />
+                <p className="text-sm">Nenhum dado de receita disponível</p>
+                <p className="text-xs mt-1">Importe um CSV para visualizar tendências</p>
+              </div>
+            )}
+          </div>
+
+          {/* Expenses by Category */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-slate-900">Despesas por Categoria</h3>
+              {pieData.length > 0 && (
+                <ExplainButton
+                  metric="Despesas por Categoria"
+                  value={`Total: ${formatCurrency(pieData.reduce((s, d) => s + d.value, 0))}`}
+                  context={`Distribuição de despesas por categoria:\n${pieData.map(d => `- ${d.name}: R$ ${d.value.toLocaleString('pt-BR')}`).join('\n')}`}
+                  variant="icon"
+                />
+              )}
+            </div>
+            {pieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" nameKey="name" paddingAngle={2}>
+                    {pieData.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[250px] text-slate-400">
+                <Info className="w-8 h-8 mb-2" />
+                <p className="text-sm">Nenhuma despesa registrada</p>
+                <p className="text-xs mt-1">Importe um CSV para visualizar categorias</p>
+              </div>
+            )}
+            {pieData.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {pieData.map((item, i) => (
+                  <div key={i} className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                    {item.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Margins */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 lg:col-span-2">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-slate-900">Margens</h3>
+              {marginsChartData.length > 0 && (
+                <ExplainButton
+                  metric="Margens Financeiras"
+                  value={`Margem Bruta: ${marginsChartData[marginsChartData.length - 1]?.margemBruta.toFixed(1)}% | EBITDA: ${marginsChartData[marginsChartData.length - 1]?.ebitda.toFixed(1)}%`}
+                  context={`Evolução das margens:\n${marginsChartData.map(d => `${d.month}: Margem Bruta ${d.margemBruta.toFixed(1)}% | EBITDA ${d.ebitda.toFixed(1)}% | Lucro Líquido ${d.lucroLiquido.toFixed(1)}%`).join('\n')}`}
+                  variant="icon"
+                />
+              )}
+            </div>
+            {marginsChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={marginsChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v) => `${v.toFixed(0)}%`} />
+                  <Tooltip
+                    formatter={(v: number) => `${v.toFixed(1)}%`}
+                    contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                  />
+                  <Line type="monotone" dataKey="margemBruta" stroke="#10b981" strokeWidth={2} name="Margem Bruta" dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="ebitda" stroke="#3b82f6" strokeWidth={2} name="EBITDA %" dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="lucroLiquido" stroke="#8b5cf6" strokeWidth={2} name="Lucro Líquido %" dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[250px] text-slate-400">
+                <Info className="w-8 h-8 mb-2" />
+                <p className="text-sm">Nenhum dado de margem disponível</p>
+                <p className="text-xs mt-1">Importe um CSV para visualizar margens</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========== DRE EXPANSÍVEL ========== */}
+      {activeView === 'dre' && (
+        <div className="bg-white rounded-xl border border-slate-200">
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Demonstração de Resultado do Exercício</h3>
+              <p className="text-xs text-slate-400 mt-1">Clique nas linhas principais para expandir o detalhamento por categoria</p>
+            </div>
+            {dreData.length > 0 && (
+              <ExplainButton
+                metric="DRE Completo"
+                value={`Receita: ${formatCurrency(dreData[dreData.length - 1]?.revenue || 0)} | EBITDA: ${formatCurrency(dreData[dreData.length - 1]?.ebitda || 0)} | Lucro: ${formatCurrency(dreData[dreData.length - 1]?.netIncome || 0)}`}
+                context={`DRE mês a mês:\n${dreData.map(d => `${d.month}: Receita ${formatCurrency(d.revenue)} | Custos ${formatCurrency(d.cogs)} | Lucro Bruto ${formatCurrency(d.grossProfit)} | Opex ${formatCurrency(d.opex)} | EBITDA ${formatCurrency(d.ebitda)} | Lucro Líquido ${formatCurrency(d.netIncome)}`).join('\n')}`}
+                variant="small"
+              />
+            )}
+          </div>
+          <DRETable dreData={dreData} rawDreData={rawDreData} monthKeys={monthKeys} />
+        </div>
+      )}
+
+      {/* ========== COST CLASSIFICATION MODAL ========== */}
       <CostClassificationModal
         isOpen={showCostModal}
-        transactions={pendingTransactions}
+        transactions={pendingClassifications}
         onClose={() => setShowCostModal(false)}
-        onClassify={classifyAllPending}
+        onClassify={handleClassifyAll}
         isClassifying={isClassifying}
       />
-    fetchPendingCostClassifications();
-    <div className="space-y-6">
-    fetchPendingCostClassifications();
-      <div className="flex items-center justify-between">
-    fetchPendingCostClassifications();
-        <div>
-    fetchPendingCostClassifications();
-          <h2 className="text-2xl font-bold text-slate-900">Dashboards</h2>
-    fetchPendingCostClassifications();
-          <p className="text-sm text-slate-500 mt-1">Visão detalhada das finanças</p>
-    fetchPendingCostClassifications();
-        </div>
-    fetchPendingCostClassifications();
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-    fetchPendingCostClassifications();
-          {[
-    fetchPendingCostClassifications();
-            { id: 'overview' as const, label: 'Visão Geral' },
-    fetchPendingCostClassifications();
-            { id: 'dre' as const, label: 'DRE' },
-    fetchPendingCostClassifications();
-            { id: 'transactions' as const, label: 'Transações' },
-    fetchPendingCostClassifications();
-          ].map((tab) => (
-    fetchPendingCostClassifications();
-            <button
-    fetchPendingCostClassifications();
-              key={tab.id}
-    fetchPendingCostClassifications();
-              onClick={() => setActiveView(tab.id)}
-    fetchPendingCostClassifications();
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-    fetchPendingCostClassifications();
-                activeView === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-    fetchPendingCostClassifications();
-              }`}
-    fetchPendingCostClassifications();
-            >
-    fetchPendingCostClassifications();
-              {tab.label}
-    fetchPendingCostClassifications();
-            </button>
-    fetchPendingCostClassifications();
-          ))}
-    fetchPendingCostClassifications();
-        </div>
-    fetchPendingCostClassifications();
-      </div>
-    fetchPendingCostClassifications();
 
-    fetchPendingCostClassifications();
-      {/* ========== OVERVIEW ========== */}
-    fetchPendingCostClassifications();
-      {activeView === 'overview' && (
-    fetchPendingCostClassifications();
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    fetchPendingCostClassifications();
-          {/* Revenue Trend */}
-    fetchPendingCostClassifications();
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-    fetchPendingCostClassifications();
-            <div className="flex items-center justify-between mb-4">
-    fetchPendingCostClassifications();
-              <h3 className="text-sm font-semibold text-slate-900">Tendência de Receita</h3>
-    fetchPendingCostClassifications();
-              {revenueChartData.length > 0 && (
-    fetchPendingCostClassifications();
-                <ExplainButton
-    fetchPendingCostClassifications();
-                  metric="Tendência de Receita"
-    fetchPendingCostClassifications();
-                  value={`Último mês: ${formatCurrency(revenueChartData[revenueChartData.length - 1]?.revenue || 0)}`}
-    fetchPendingCostClassifications();
-                  context={`Evolução da receita mensal:\n${revenueChartData.map(d => `${d.month}: R$ ${d.revenue.toLocaleString('pt-BR')}`).join('\n')}`}
-    fetchPendingCostClassifications();
-                  variant="icon"
-    fetchPendingCostClassifications();
-                />
-    fetchPendingCostClassifications();
-              )}
-    fetchPendingCostClassifications();
-            </div>
-    fetchPendingCostClassifications();
-            {revenueChartData.length > 0 ? (
-    fetchPendingCostClassifications();
-              <ResponsiveContainer width="100%" height={250}>
-    fetchPendingCostClassifications();
-                <AreaChart data={revenueChartData}>
-    fetchPendingCostClassifications();
-                  <defs>
-    fetchPendingCostClassifications();
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-    fetchPendingCostClassifications();
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-    fetchPendingCostClassifications();
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-    fetchPendingCostClassifications();
-                    </linearGradient>
-    fetchPendingCostClassifications();
-                  </defs>
-    fetchPendingCostClassifications();
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-    fetchPendingCostClassifications();
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-    fetchPendingCostClassifications();
-                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-    fetchPendingCostClassifications();
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-    fetchPendingCostClassifications();
-                  <Area type="monotone" dataKey="revenue" stroke="#10b981" fill="url(#colorRevenue)" strokeWidth={2} name="Receita" />
-    fetchPendingCostClassifications();
-                </AreaChart>
-    fetchPendingCostClassifications();
-              </ResponsiveContainer>
-    fetchPendingCostClassifications();
-            ) : (
-    fetchPendingCostClassifications();
-              <div className="flex flex-col items-center justify-center h-[250px] text-slate-400">
-    fetchPendingCostClassifications();
-                <Info className="w-8 h-8 mb-2" />
-    fetchPendingCostClassifications();
-                <p className="text-sm">Nenhum dado de receita disponível</p>
-    fetchPendingCostClassifications();
-                <p className="text-xs mt-1">Importe um CSV para visualizar tendências</p>
-    fetchPendingCostClassifications();
-              </div>
-    fetchPendingCostClassifications();
-            )}
-    fetchPendingCostClassifications();
-          </div>
-    fetchPendingCostClassifications();
-
-    fetchPendingCostClassifications();
-          {/* Expenses by Category */}
-    fetchPendingCostClassifications();
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-    fetchPendingCostClassifications();
-            <div className="flex items-center justify-between mb-4">
-    fetchPendingCostClassifications();
-              <h3 className="text-sm font-semibold text-slate-900">Despesas por Categoria</h3>
-    fetchPendingCostClassifications();
-              {pieData.length > 0 && (
-    fetchPendingCostClassifications();
-                <ExplainButton
-    fetchPendingCostClassifications();
-                  metric="Despesas por Categoria"
-    fetchPendingCostClassifications();
-                  value={`Total: ${formatCurrency(pieData.reduce((s, d) => s + d.value, 0))}`}
-    fetchPendingCostClassifications();
-                  context={`Distribuição de despesas por categoria:\n${pieData.map(d => `- ${d.name}: R$ ${d.value.toLocaleString('pt-BR')}`).join('\n')}`}
-    fetchPendingCostClassifications();
-                  variant="icon"
-    fetchPendingCostClassifications();
-                />
-    fetchPendingCostClassifications();
-              )}
-    fetchPendingCostClassifications();
-            </div>
-    fetchPendingCostClassifications();
-            {pieData.length > 0 ? (
-    fetchPendingCostClassifications();
-              <ResponsiveContainer width="100%" height={250}>
-    fetchPendingCostClassifications();
-                <PieChart>
-    fetchPendingCostClassifications();
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" nameKey="name" paddingAngle={2}>
-    fetchPendingCostClassifications();
-                    {pieData.map((_, i) => (
-    fetchPendingCostClassifications();
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-    fetchPendingCostClassifications();
-                    ))}
-    fetchPendingCostClassifications();
-                  </Pie>
-    fetchPendingCostClassifications();
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-    fetchPendingCostClassifications();
-                </PieChart>
-    fetchPendingCostClassifications();
-              </ResponsiveContainer>
-    fetchPendingCostClassifications();
-            ) : (
-    fetchPendingCostClassifications();
-              <div className="flex flex-col items-center justify-center h-[250px] text-slate-400">
-    fetchPendingCostClassifications();
-                <Info className="w-8 h-8 mb-2" />
-    fetchPendingCostClassifications();
-                <p className="text-sm">Nenhuma despesa registrada</p>
-    fetchPendingCostClassifications();
-                <p className="text-xs mt-1">Importe um CSV para visualizar categorias</p>
-    fetchPendingCostClassifications();
-              </div>
-    fetchPendingCostClassifications();
-            )}
-    fetchPendingCostClassifications();
-            {pieData.length > 0 && (
-    fetchPendingCostClassifications();
-              <div className="flex flex-wrap gap-2 mt-2">
-    fetchPendingCostClassifications();
-                {pieData.map((item, i) => (
-    fetchPendingCostClassifications();
-                  <div key={i} className="flex items-center gap-1.5 text-xs text-slate-600">
-    fetchPendingCostClassifications();
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
-    fetchPendingCostClassifications();
-                    {item.name}
-    fetchPendingCostClassifications();
-                  </div>
-    fetchPendingCostClassifications();
-                ))}
-    fetchPendingCostClassifications();
-              </div>
-    fetchPendingCostClassifications();
-            )}
-    fetchPendingCostClassifications();
-          </div>
-    fetchPendingCostClassifications();
-
-    fetchPendingCostClassifications();
-          {/* Margins */}
-    fetchPendingCostClassifications();
-          <div className="bg-white rounded-xl border border-slate-200 p-6 lg:col-span-2">
-    fetchPendingCostClassifications();
-            <div className="flex items-center justify-between mb-4">
-    fetchPendingCostClassifications();
-              <h3 className="text-sm font-semibold text-slate-900">Margens</h3>
-    fetchPendingCostClassifications();
-              {marginsChartData.length > 0 && (
-    fetchPendingCostClassifications();
-                <ExplainButton
-    fetchPendingCostClassifications();
-                  metric="Margens Financeiras"
-    fetchPendingCostClassifications();
-                  value={`Margem Bruta: ${marginsChartData[marginsChartData.length - 1]?.margemBruta.toFixed(1)}% | EBITDA: ${marginsChartData[marginsChartData.length - 1]?.ebitda.toFixed(1)}%`}
-    fetchPendingCostClassifications();
-                  context={`Evolução das margens:\n${marginsChartData.map(d => `${d.month}: Margem Bruta ${d.margemBruta.toFixed(1)}% | EBITDA ${d.ebitda.toFixed(1)}% | Lucro Líquido ${d.lucroLiquido.toFixed(1)}%`).join('\n')}`}
-    fetchPendingCostClassifications();
-                  variant="icon"
-    fetchPendingCostClassifications();
-                />
-    fetchPendingCostClassifications();
-              )}
-    fetchPendingCostClassifications();
-            </div>
-    fetchPendingCostClassifications();
-            {marginsChartData.length > 0 ? (
-    fetchPendingCostClassifications();
-              <ResponsiveContainer width="100%" height={250}>
-    fetchPendingCostClassifications();
-                <LineChart data={marginsChartData}>
-    fetchPendingCostClassifications();
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-    fetchPendingCostClassifications();
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-    fetchPendingCostClassifications();
-                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v) => `${v.toFixed(0)}%`} />
-    fetchPendingCostClassifications();
-                  <Tooltip
-    fetchPendingCostClassifications();
-                    formatter={(v: number) => `${v.toFixed(1)}%`}
-    fetchPendingCostClassifications();
-                    contentStyle={{ borderRadius: 8, fontSize: 12 }}
-    fetchPendingCostClassifications();
-                  />
-    fetchPendingCostClassifications();
-                  <Line type="monotone" dataKey="margemBruta" stroke="#10b981" strokeWidth={2} name="Margem Bruta" dot={{ r: 3 }} />
-    fetchPendingCostClassifications();
-                  <Line type="monotone" dataKey="ebitda" stroke="#3b82f6" strokeWidth={2} name="EBITDA %" dot={{ r: 3 }} />
-    fetchPendingCostClassifications();
-                  <Line type="monotone" dataKey="lucroLiquido" stroke="#8b5cf6" strokeWidth={2} name="Lucro Líquido %" dot={{ r: 3 }} />
-    fetchPendingCostClassifications();
-                </LineChart>
-    fetchPendingCostClassifications();
-              </ResponsiveContainer>
-    fetchPendingCostClassifications();
-            ) : (
-    fetchPendingCostClassifications();
-              <div className="flex flex-col items-center justify-center h-[250px] text-slate-400">
-    fetchPendingCostClassifications();
-                <Info className="w-8 h-8 mb-2" />
-    fetchPendingCostClassifications();
-                <p className="text-sm">Nenhum dado de margem disponível</p>
-    fetchPendingCostClassifications();
-                <p className="text-xs mt-1">Importe um CSV para visualizar margens</p>
-    fetchPendingCostClassifications();
-              </div>
-    fetchPendingCostClassifications();
-            )}
-    fetchPendingCostClassifications();
-          </div>
-    fetchPendingCostClassifications();
-        </div>
-    fetchPendingCostClassifications();
-      )}
-    fetchPendingCostClassifications();
-
-    fetchPendingCostClassifications();
-      {/* ========== DRE EXPANSÍVEL ========== */}
-    fetchPendingCostClassifications();
-      {activeView === 'dre' && (
-    fetchPendingCostClassifications();
-        <div className="bg-white rounded-xl border border-slate-200">
-    fetchPendingCostClassifications();
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-    fetchPendingCostClassifications();
-            <div>
-    fetchPendingCostClassifications();
-              <h3 className="text-lg font-semibold text-slate-900">Demonstração de Resultado do Exercício</h3>
-    fetchPendingCostClassifications();
-              <p className="text-xs text-slate-400 mt-1">Clique nas linhas principais para expandir o detalhamento por categoria</p>
-    fetchPendingCostClassifications();
-            </div>
-    fetchPendingCostClassifications();
-            {dreData.length > 0 && (
-    fetchPendingCostClassifications();
-              <ExplainButton
-    fetchPendingCostClassifications();
-                metric="DRE Completo"
-    fetchPendingCostClassifications();
-                value={`Receita: ${formatCurrency(dreData[dreData.length - 1]?.revenue || 0)} | EBITDA: ${formatCurrency(dreData[dreData.length - 1]?.ebitda || 0)} | Lucro: ${formatCurrency(dreData[dreData.length - 1]?.netIncome || 0)}`}
-    fetchPendingCostClassifications();
-                context={`DRE mês a mês:\n${dreData.map(d => `${d.month}: Receita ${formatCurrency(d.revenue)} | Custos ${formatCurrency(d.cogs)} | Lucro Bruto ${formatCurrency(d.grossProfit)} | Opex ${formatCurrency(d.opex)} | EBITDA ${formatCurrency(d.ebitda)} | Lucro Líquido ${formatCurrency(d.netIncome)}`).join('\n')}`}
-    fetchPendingCostClassifications();
-                variant="small"
-    fetchPendingCostClassifications();
-              />
-    fetchPendingCostClassifications();
-            )}
-    fetchPendingCostClassifications();
-          </div>
-    fetchPendingCostClassifications();
-          <DRETable dreData={dreData} rawDreData={rawDreData} monthKeys={monthKeys} />
-    fetchPendingCostClassifications();
-        </div>
-    fetchPendingCostClassifications();
-      )}
-    fetchPendingCostClassifications();
-
-    fetchPendingCostClassifications();
       {/* ========== TRANSACTIONS ========== */}
-    fetchPendingCostClassifications();
       {activeView === 'transactions' && (
-    fetchPendingCostClassifications();
         <div className="bg-white rounded-xl border border-slate-200">
-    fetchPendingCostClassifications();
           <div className="p-6 border-b border-slate-100">
-    fetchPendingCostClassifications();
             <div className="flex items-center justify-between mb-4">
-    fetchPendingCostClassifications();
               <h3 className="text-lg font-semibold text-slate-900">Transações</h3>
-    fetchPendingCostClassifications();
               <div className="flex items-center gap-2">
-    fetchPendingCostClassifications();
                 <Filter className="w-4 h-4 text-slate-400" />
-    fetchPendingCostClassifications();
                 <select
-    fetchPendingCostClassifications();
                   value={txFilter}
-    fetchPendingCostClassifications();
                   onChange={(e) => { setTxFilter(e.target.value as any); setTxPage(1); }}
-    fetchPendingCostClassifications();
                   className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-    fetchPendingCostClassifications();
                 >
-    fetchPendingCostClassifications();
                   <option value="all">Todas</option>
-    fetchPendingCostClassifications();
                   <option value="INCOME">Receitas</option>
-    fetchPendingCostClassifications();
                   <option value="EXPENSE">Despesas</option>
-    fetchPendingCostClassifications();
                 </select>
-    fetchPendingCostClassifications();
+                <button
+                  onClick={exportToExcel}
+                  disabled={isExporting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Exportar transações filtradas para Excel"
+                >
+                  {isExporting ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Exportando...</>
+                  ) : (
+                    <><Download className="w-4 h-4" /> Exportar Excel</>
+                  )}
+                </button>
               </div>
-    fetchPendingCostClassifications();
             </div>
-    fetchPendingCostClassifications();
             <DateRangePicker
-    fetchPendingCostClassifications();
               startDate={txStartDate}
-    fetchPendingCostClassifications();
               endDate={txEndDate}
-    fetchPendingCostClassifications();
               onChangeStart={setTxStartDate}
-    fetchPendingCostClassifications();
               onChangeEnd={setTxEndDate}
-    fetchPendingCostClassifications();
               onApply={applyDateFilter}
-    fetchPendingCostClassifications();
               onClear={clearDateFilter}
-    fetchPendingCostClassifications();
             />
-    fetchPendingCostClassifications();
             {appliedStartDate && appliedEndDate && (
-    fetchPendingCostClassifications();
               <p className="text-xs text-slate-400 mt-2">
-    fetchPendingCostClassifications();
                 Exibindo transações de {new Date(appliedStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(appliedEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
-    fetchPendingCostClassifications();
               </p>
-    fetchPendingCostClassifications();
             )}
-    fetchPendingCostClassifications();
           </div>
-    fetchPendingCostClassifications();
           <div className="overflow-x-auto">
-    fetchPendingCostClassifications();
             <table className="w-full text-sm">
-    fetchPendingCostClassifications();
               <thead>
-    fetchPendingCostClassifications();
                 <tr className="bg-slate-50">
-    fetchPendingCostClassifications();
                   <th className="text-left py-3 px-6 text-slate-500 font-medium">Data</th>
-    fetchPendingCostClassifications();
                   <th className="text-left py-3 px-4 text-slate-500 font-medium">Descrição</th>
-    fetchPendingCostClassifications();
                   <th className="text-left py-3 px-4 text-slate-500 font-medium">Categoria</th>
-    fetchPendingCostClassifications();
                   <th className="text-right py-3 px-6 text-slate-500 font-medium">Valor</th>
-    fetchPendingCostClassifications();
                 </tr>
-    fetchPendingCostClassifications();
               </thead>
-    fetchPendingCostClassifications();
               <tbody>
-    fetchPendingCostClassifications();
                 {transactions.length === 0 ? (
-    fetchPendingCostClassifications();
                   <tr>
-    fetchPendingCostClassifications();
                     <td colSpan={4} className="py-12 text-center text-slate-400">
-    fetchPendingCostClassifications();
                       Nenhuma transação encontrada. Importe um CSV ou adicione manualmente.
-    fetchPendingCostClassifications();
                     </td>
-    fetchPendingCostClassifications();
                   </tr>
-    fetchPendingCostClassifications();
                 ) : (
-    fetchPendingCostClassifications();
                   transactions.map((tx) => (
-    fetchPendingCostClassifications();
                     <tr key={tx.id} className="border-b border-slate-100 hover:bg-slate-50">
-    fetchPendingCostClassifications();
                       <td className="py-3 px-6 text-slate-600">{formatDate(tx.date)}</td>
-    fetchPendingCostClassifications();
                       <td className="py-3 px-4 text-slate-900">{tx.description}</td>
-    fetchPendingCostClassifications();
                       <td className="py-3 px-4">
-    fetchPendingCostClassifications();
                         <span className="text-xs px-2 py-1 bg-slate-100 rounded-full text-slate-600">
-    fetchPendingCostClassifications();
                           {tx.category?.name || 'Sem categoria'}
-    fetchPendingCostClassifications();
                         </span>
-    fetchPendingCostClassifications();
                       </td>
-    fetchPendingCostClassifications();
                       <td className={`py-3 px-6 text-right font-medium ${
-    fetchPendingCostClassifications();
                         tx.type === 'INCOME' ? 'text-emerald-600' : 'text-red-600'
-    fetchPendingCostClassifications();
                       }`}>
-    fetchPendingCostClassifications();
                         {tx.type === 'INCOME' ? '+' : '-'}{formatCurrencyFull(Math.abs(tx.amount))}
-    fetchPendingCostClassifications();
                       </td>
-    fetchPendingCostClassifications();
                     </tr>
-    fetchPendingCostClassifications();
                   ))
-    fetchPendingCostClassifications();
                 )}
-    fetchPendingCostClassifications();
               </tbody>
-    fetchPendingCostClassifications();
             </table>
-    fetchPendingCostClassifications();
           </div>
-    fetchPendingCostClassifications();
           {transactions.length > 0 && (
-    fetchPendingCostClassifications();
             <div className="p-4 flex items-center justify-center gap-2">
-    fetchPendingCostClassifications();
               <button
-    fetchPendingCostClassifications();
                 onClick={() => setTxPage(p => Math.max(1, p - 1))}
-    fetchPendingCostClassifications();
                 disabled={txPage === 1}
-    fetchPendingCostClassifications();
                 className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50 hover:bg-slate-50"
-    fetchPendingCostClassifications();
               >
-    fetchPendingCostClassifications();
                 Anterior
-    fetchPendingCostClassifications();
               </button>
-    fetchPendingCostClassifications();
               <span className="text-sm text-slate-500">Página {txPage}</span>
-    fetchPendingCostClassifications();
               <button
-    fetchPendingCostClassifications();
                 onClick={() => setTxPage(p => p + 1)}
-    fetchPendingCostClassifications();
                 disabled={transactions.length < 50}
-    fetchPendingCostClassifications();
                 className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg disabled:opacity-50 hover:bg-slate-50"
-    fetchPendingCostClassifications();
               >
-    fetchPendingCostClassifications();
                 Próxima
-    fetchPendingCostClassifications();
               </button>
-    fetchPendingCostClassifications();
             </div>
-    fetchPendingCostClassifications();
           )}
-    fetchPendingCostClassifications();
         </div>
-    fetchPendingCostClassifications();
       )}
-    fetchPendingCostClassifications();
     </div>
-    fetchPendingCostClassifications();
   );
-    fetchPendingCostClassifications();
 }
-    fetchPendingCostClassifications();
