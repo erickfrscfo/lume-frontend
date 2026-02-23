@@ -8,7 +8,7 @@ import CashflowChart from '@/components/CashflowChart';
 import type { CashflowDataPoint, Scenario as ChartScenario } from '@/components/CashflowChart';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import {
-  DollarSign, TrendingDown, Calendar,
+  DollarSign, TrendingDown, Percent, Calendar,
   ChevronDown, ToggleLeft, ToggleRight,
   X, Info, Plus, Trash2,
   Send, MoreHorizontal, ArrowLeft, Sparkles, Loader2, BarChart3, TrendingUp
@@ -28,6 +28,10 @@ interface DashboardData {
   runway: MetricValue;
   growth: MetricValue;
   transactionCount: number;
+}
+
+interface DREData {
+  [month: string]: { [code: string]: number };
 }
 
 interface CashflowRaw {
@@ -358,6 +362,7 @@ function ScenarioDetail({ scenario, onBack, onToggle, onDelete }: ScenarioDetail
 export default function Dashboard() {
   const [dashData, setDashData] = useState<DashboardData | null>(null);
   const [cashflowRaw, setCashflowRaw] = useState<CashflowRaw[]>([]);
+  const [dreRaw, setDreRaw] = useState<DREData>({});
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scenariosOpen, setScenariosOpen] = useState(true);
@@ -412,14 +417,16 @@ export default function Dashboard() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [metricsRes, cashflowRes, scenariosRes] = await Promise.allSettled([
+      const [metricsRes, cashflowRes, scenariosRes, dreRes] = await Promise.allSettled([
         financialApi.dashboard(),
         financialApi.cashflow(12),
         scenariosApi.list(),
+        financialApi.dre(3),
       ]);
       if (metricsRes.status === 'fulfilled') setDashData(metricsRes.value.data.data || metricsRes.value.data);
       if (cashflowRes.status === 'fulfilled') setCashflowRaw(cashflowRes.value.data.data || cashflowRes.value.data || []);
       if (scenariosRes.status === 'fulfilled') setScenarios(scenariosRes.value.data.data || scenariosRes.value.data || []);
+      if (dreRes.status === 'fulfilled') setDreRaw(dreRes.value.data.data || dreRes.value.data || {});
     } catch (err: any) {
       setError('Erro ao carregar dados. Verifique a conexão com o servidor.');
     } finally {
@@ -524,12 +531,40 @@ Pedido do usuário: ${userMsg}`;
   // ============================================
   const cashBalance = extractValue(dashData?.cashBalance);
   const cashBalanceChange = extractChange(dashData?.cashBalance);
-  const burnRate = extractValue(dashData?.burnRate);
-  const burnRateChange = extractChange(dashData?.burnRate);
-  const runway = extractValue(dashData?.runway);
-  const runwayChange = extractChange(dashData?.runway);
   // growth removido — indicador Fluxo de Caixa Líquido retirado da tela
   const transactionCount = dashData?.transactionCount || 0;
+
+  // Calcular margens do mês atual a partir da DRE
+  const { margemBruta, margemLiquida } = useMemo(() => {
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthData = dreRaw[currentMonthKey];
+    if (!monthData) return { margemBruta: 0, margemLiquida: 0 };
+
+    const receita = Object.entries(monthData)
+      .filter(([k]) => k.startsWith('1.'))
+      .reduce((sum, [, v]) => sum + v, 0);
+    const cmv = Object.entries(monthData)
+      .filter(([k]) => k.startsWith('3.'))
+      .reduce((sum, [, v]) => sum + v, 0);
+    const impostos = Object.entries(monthData)
+      .filter(([k]) => k.startsWith('4.'))
+      .reduce((sum, [, v]) => sum + v, 0);
+    const despOp = Object.entries(monthData)
+      .filter(([k]) => k.startsWith('5.'))
+      .reduce((sum, [, v]) => sum + v, 0);
+    const despCom = Object.entries(monthData)
+      .filter(([k]) => k.startsWith('6.'))
+      .reduce((sum, [, v]) => sum + v, 0);
+
+    const lucroBruto = receita - cmv;
+    const lucroLiquido = receita - cmv - impostos - despOp - despCom;
+
+    return {
+      margemBruta: receita > 0 ? (lucroBruto / receita) * 100 : 0,
+      margemLiquida: receita > 0 ? (lucroLiquido / receita) * 100 : 0,
+    };
+  }, [dreRaw]);
 
 
   // Build 12-month sliding window: 5 past + current + 6 forecast
@@ -619,9 +654,9 @@ Pedido do usuário: ${userMsg}`;
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} showChange={true} subtitle="Saldo total disponível" colorTheme="blue" />
-          <MetricCard title="Taxa de Queima" value={burnRate} icon={TrendingDown} showChange={false} subtitle="Ritmo de consumo mensal do caixa" colorTheme="red" />
-          <MetricCard title="Runway" value={runway} icon={Calendar} showChange={false} format="months" subtitle="Meses de operação restantes" colorTheme="green" />
+          <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} showChange={true} subtitle="Saldo acumulado" colorTheme="blue" />
+          <MetricCard title="Margem Bruta" value={margemBruta} icon={TrendingUp} showChange={false} format="percent" subtitle="(Lucro Bruto / Receita) × 100" colorTheme={margemBruta >= 30 ? 'green' : 'red'} />
+          <MetricCard title="Margem Líquida" value={margemLiquida} icon={Percent} showChange={false} format="percent" subtitle="(Lucro Líquido / Receita) × 100" colorTheme={margemLiquida >= 10 ? 'green' : margemLiquida >= 0 ? 'blue' : 'red'} />
         </div>
 
         <CashflowChart data={cashflowData} scenarios={chartScenarios} initialBalance={0} forecastStartMonth={forecastStartMonth} />
