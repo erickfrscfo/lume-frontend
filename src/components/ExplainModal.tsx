@@ -119,7 +119,7 @@ export default function ExplainModal({ isOpen, onClose, metric, value, context }
                 <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
               </div>
               <p className="text-sm font-medium text-slate-700">Analisando seus dados...</p>
-              <p className="text-xs text-slate-400 mt-1">O CFO AI está gerando uma análise personalizada</p>
+              <p className="text-xs text-slate-400 mt-1">O Esnorke está gerando uma análise personalizada</p>
             </div>
           )}
 
@@ -144,7 +144,7 @@ export default function ExplainModal({ isOpen, onClose, metric, value, context }
                 <div className="w-6 h-6 bg-gradient-to-br from-amber-400 to-orange-400 rounded-full flex items-center justify-center">
                   <SparkleIcon className="w-3.5 h-3.5 text-white" />
                 </div>
-                <span className="text-sm text-slate-500">Análise gerada pelo CFO AI com base nos seus dados</span>
+                <span className="text-sm text-slate-500">Análise gerada pelo Esnorke com base nos seus dados</span>
               </div>
 
               {/* ===== CARD 1: RESUMO ===== */}
@@ -165,11 +165,11 @@ export default function ExplainModal({ isOpen, onClose, metric, value, context }
                 <p className="text-[15px] leading-relaxed text-slate-700">{data.details}</p>
               </div>
 
-              {/* ===== CARD 3: RECOMENDAÇÃO DO CFO AI ===== */}
+              {/* ===== CARD 3: RECOMENDAÇÃO DO ESNORKE ===== */}
               <div className="bg-emerald-50 rounded-xl p-5 border-l-4 border-emerald-400">
                 <div className="flex items-center gap-2 mb-3">
                   <TrendingUp className="w-4 h-4 text-emerald-500" />
-                  <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-wide">Recomendação do CFO AI</h3>
+                  <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-wide">Recomendação do Esnorke</h3>
                 </div>
                 <p className="text-[15px] leading-relaxed text-slate-700">{data.recommendation}</p>
               </div>
