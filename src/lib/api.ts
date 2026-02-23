@@ -94,8 +94,8 @@ export const uploadApi = {
 // AI
 // ============================================
 export const aiApi = {
-  chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>) =>
-    api.post('/ai/chat', { message, history }),
+  chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>, systemPrompt?: string) =>
+    api.post('/ai/chat', { message, history, ...(systemPrompt ? { systemPrompt } : {}) }),
   explain: (metric: string, value: string, context?: string) =>
     api.post('/ai/explain', { metric, value, context }),
   chatHistory: () => api.get('/ai/chat/history'),

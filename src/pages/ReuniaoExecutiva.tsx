@@ -9,6 +9,19 @@ interface Message {
   timestamp: Date;
 }
 
+/** Remove fórmulas LaTeX e limpa a resposta da IA */
+function cleanAiResponse(text: string): string {
+  let cleaned = text;
+  // Remove blocos LaTeX \[ ... \] e \( ... \)
+  cleaned = cleaned.replace(/\\\[([\s\S]*?)\\\]/g, '');
+  cleaned = cleaned.replace(/\\\(([\s\S]*?)\\\)/g, '');
+  // Remove comandos LaTeX restantes como \frac, \text, \times, \approx, \left, \right
+  cleaned = cleaned.replace(/\\(?:frac|text|times|approx|left|right|cdot)[^\s]*/g, '');
+  // Remove linhas vazias consecutivas (mais de 2)
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+  return cleaned.trim();
+}
+
 /** Renderiza markdown básico (negrito) em JSX */
 function renderMarkdown(text: string): React.ReactNode {
   const lines = text.split('\n');
@@ -71,8 +84,9 @@ export default function ReuniaoExecutiva() {
 
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }));
-      const res = await aiApi.chat(messageText, history);
-      const aiResponse = res.data.data?.message || res.data.data?.response || res.data.message || res.data.response || 'Desculpe, não consegui processar sua mensagem.';
+      const res = await aiApi.chat(messageText, history, 'Você é um assistente financeiro executivo. Responda de forma clara, direta e objetiva, como se estivesse em uma reunião de diretoria. NUNCA use fórmulas matemáticas, LaTeX ou notação científica. Apresente apenas os valores finais já calculados. Use linguagem simples e profissional. Formate com markdown: use **negrito** para destaques e listas numeradas quando apropriado.');
+      const rawResponse = res.data.data?.message || res.data.data?.response || res.data.message || res.data.response || 'Desculpe, não consegui processar sua mensagem.';
+      const aiResponse = cleanAiResponse(rawResponse);
       setMessages(prev => [...prev, { role: 'assistant', content: aiResponse, timestamp: new Date() }]);
     } catch (err: any) {
       const errorMsg = err.response?.status === 429
