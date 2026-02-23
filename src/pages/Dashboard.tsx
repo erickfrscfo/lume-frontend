@@ -123,6 +123,38 @@ function extractChange(metric: any): number | undefined {
   return undefined;
 }
 
+/** Renderiza markdown básico (negrito, itálico, listas) em JSX */
+function renderMarkdown(text: string): React.ReactNode {
+  // Divide por linhas para tratar listas e parágrafos
+  const lines = text.split('\n');
+  return lines.map((line, li) => {
+    // Processa inline: **bold** e *italic*
+    const parts: React.ReactNode[] = [];
+    let remaining = line;
+    let key = 0;
+    while (remaining.length > 0) {
+      // Bold: **text**
+      const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+      if (boldMatch && boldMatch.index !== undefined) {
+        if (boldMatch.index > 0) {
+          parts.push(<span key={key++}>{remaining.slice(0, boldMatch.index)}</span>);
+        }
+        parts.push(<strong key={key++} className="font-semibold">{boldMatch[1]}</strong>);
+        remaining = remaining.slice(boldMatch.index + boldMatch[0].length);
+      } else {
+        parts.push(<span key={key++}>{remaining}</span>);
+        break;
+      }
+    }
+    return (
+      <span key={li}>
+        {parts}
+        {li < lines.length - 1 && <br />}
+      </span>
+    );
+  });
+}
+
 function ChevronRight(props: any) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -945,7 +977,11 @@ Pedido do usuário: ${userMsg}`;
                             ? 'bg-slate-100 text-slate-800 rounded-br-md'
                             : 'bg-white text-slate-700 border border-slate-100 rounded-bl-md'
                         }`}>
+                          {msg.role === 'assistant' ? (
+                          <div className="text-xs leading-relaxed whitespace-pre-wrap">{renderMarkdown(msg.content)}</div>
+                        ) : (
                           <p className="text-xs leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                        )}
                           {msg.scenariosCreated && msg.scenariosCreated.length > 0 && (
                             <div className="mt-2 pt-2 border-t border-slate-100">
                               <p className="text-[10px] text-slate-400 mb-1">{msg.scenariosCreated.length} cenário(s) criado(s):</p>
