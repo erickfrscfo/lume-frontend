@@ -9,6 +9,35 @@ interface Message {
   timestamp: Date;
 }
 
+/** Renderiza markdown básico (negrito) em JSX */
+function renderMarkdown(text: string): React.ReactNode {
+  const lines = text.split('\n');
+  return lines.map((line, li) => {
+    const parts: React.ReactNode[] = [];
+    let remaining = line;
+    let key = 0;
+    while (remaining.length > 0) {
+      const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+      if (boldMatch && boldMatch.index !== undefined) {
+        if (boldMatch.index > 0) {
+          parts.push(<span key={key++}>{remaining.slice(0, boldMatch.index)}</span>);
+        }
+        parts.push(<strong key={key++} className="font-semibold">{boldMatch[1]}</strong>);
+        remaining = remaining.slice(boldMatch.index + boldMatch[0].length);
+      } else {
+        parts.push(<span key={key++}>{remaining}</span>);
+        break;
+      }
+    }
+    return (
+      <span key={li}>
+        {parts}
+        {li < lines.length - 1 && <br />}
+      </span>
+    );
+  });
+}
+
 const SUGGESTIONS = [
   'Qual é a situação atual do fluxo de caixa?',
   'Quais são as maiores despesas este mês?',
@@ -133,7 +162,7 @@ export default function ReuniaoExecutiva() {
                     ? 'bg-blue-600 text-white rounded-br-md'
                     : 'bg-slate-100 text-slate-800 rounded-bl-md'
                 }`}>
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  <div className="whitespace-pre-wrap">{msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}</div>
                 </div>
                 <div className="flex items-center gap-2 mt-1 px-1">
                   <span className="text-[10px] text-slate-400">
