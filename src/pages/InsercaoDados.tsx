@@ -126,7 +126,7 @@ export default function InsercaoDados() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'template_lume.csv';
+    a.download = 'template_esnorke.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
