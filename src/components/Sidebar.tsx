@@ -7,14 +7,14 @@ import {
   BarChart3,
   Link2,
   LogOut,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   GitCompareArrows,
   Users,
+  FileText,
+  Lightbulb,
 } from 'lucide-react';
 import { useState } from 'react';
-import { CheckSquare, Building2, FileText, Lightbulb } from 'lucide-react';
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Geral' },
@@ -25,13 +25,7 @@ const navItems = [
   { path: '/contrapartes', icon: Users, label: 'Contrapartes' },
   { path: '/documentos', icon: FileText, label: 'Documentos' },
   { path: '/integracoes', icon: Link2, label: 'Integrações' },
-  { name: 'Conciliação', path: '/conciliacao', icon: CheckSquare },
-  { name: 'Contrapartes', path: '/contrapartes', icon: Building2 },
-  { name: 'Documentos', path: '/documentos', icon: FileText },
-  { name: 'Alertas IA', path: '/insights', icon: Lightbulb },
-//
-// Imports necessários no Sidebar:
-//    
+  { path: '/insights', icon: Lightbulb, label: 'Alertas IA' },
 ];
 
 export default function Sidebar() {

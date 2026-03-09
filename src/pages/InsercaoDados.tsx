@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Upload, FileText, Plus, AlertCircle, CheckCircle, Loader2,
   Calendar, DollarSign, ChevronDown, ChevronUp, Building2,
@@ -33,6 +33,9 @@ interface ExtractedData {
   tipo_transacao: string;
   descricao: string;
   referencia: string | null;
+  categoria_sugerida: string | null;
+  categoria_match: { id: string; name: string; code: string } | null;
+  tipo_custo: string | null;
   itens: Array<{ descricao: string; valor: number }>;
   confianca: number;
 }
@@ -286,7 +289,28 @@ export default function InsercaoDados() {
       if (res.data?.success) {
         const result = res.data.data as OcrResult;
         setOcrResult(result);
-        // Pré-preencher formulário de edição
+
+        // Auto-match de categoria: usar o match do backend se disponível
+        let categoriaAutoMatch = '';
+        if (result.extractedData.categoria_match?.name) {
+          categoriaAutoMatch = result.extractedData.categoria_match.name;
+        } else if (result.extractedData.categoria_sugerida) {
+          // Tentar match local com as categorias carregadas
+          const sugerida = result.extractedData.categoria_sugerida.toLowerCase();
+          const tipoTx = result.extractedData.tipo_transacao || ocrTipoTransacao;
+          const match = categories.find(cat => 
+            (cat.type === tipoTx || cat.type === 'BOTH') &&
+            cat.name.toLowerCase().includes(sugerida)
+          ) || categories.find(cat =>
+            (cat.type === tipoTx || cat.type === 'BOTH') &&
+            sugerida.includes(cat.name.toLowerCase())
+          );
+          if (match) {
+            categoriaAutoMatch = match.name;
+          }
+        }
+
+        // Pré-preencher formulário de edição com dados extraídos + auto-match
         setOcrEditData({
           descricao: result.extractedData.descricao || '',
           valor: result.extractedData.valor_total?.toString() || '',
@@ -296,7 +320,8 @@ export default function InsercaoDados() {
           contraparte_nome: result.extractedData.fornecedor_ou_cliente || '',
           contraparte_documento: result.extractedData.cnpj_cpf || '',
           referencia: result.extractedData.referencia || '',
-          categoria: '',
+          categoria: categoriaAutoMatch,
+          tipo_custo: result.extractedData.tipo_custo || '',
         });
       } else {
         setOcrError(res.data?.error || 'Erro ao processar documento');
@@ -314,7 +339,14 @@ export default function InsercaoDados() {
     setOcrConfirmResult(null);
 
     try {
-      const res = await api.post(`/ocr/confirm/${ocrResult.documentId}`, ocrEditData);
+      // Enviar todos os dados incluindo tipo_custo e data_vencimento
+      const payload = {
+        ...ocrEditData,
+        tipo_custo: ocrEditData.tipo_custo || null,
+        data_vencimento: ocrEditData.data_vencimento || null,
+      };
+
+      const res = await api.post(`/ocr/confirm/${ocrResult.documentId}`, payload);
 
       if (res.data?.success) {
         setOcrConfirmResult({ success: true, message: 'Transação criada com sucesso a partir do documento!' });
@@ -947,6 +979,10 @@ export default function InsercaoDados() {
                 <FileText className="w-4 h-4 text-gray-500" />
                 <span className="text-sm text-gray-700">
                   Tipo de documento detectado: <strong>{
+                    ocrResult.extractedData.tipo_documento === 'INVOICE' ? 'Nota Fiscal' :
+                    ocrResult.extractedData.tipo_documento === 'RECEIPT' ? 'Recibo' :
+                    ocrResult.extractedData.tipo_documento === 'BANK_STATEMENT' ? 'Extrato' :
+                    ocrResult.extractedData.tipo_documento === 'CONTRACT' ? 'Contrato' :
                     ocrResult.extractedData.tipo_documento === 'nota_fiscal' ? 'Nota Fiscal' :
                     ocrResult.extractedData.tipo_documento === 'boleto' ? 'Boleto' :
                     ocrResult.extractedData.tipo_documento === 'recibo' ? 'Recibo' :
@@ -1095,7 +1131,28 @@ export default function InsercaoDados() {
                         <option key={cat.id} value={cat.name}>{cat.code} - {cat.name}</option>
                       ))}
                   </select>
+                  {ocrResult.extractedData.categoria_sugerida && !ocrEditData.categoria && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Sugestão da IA: {ocrResult.extractedData.categoria_sugerida}
+                    </p>
+                  )}
                 </div>
+
+                {/* Tipo de Custo (apenas para despesas) */}
+                {ocrEditData.tipo_transacao === 'EXPENSE' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Custo</label>
+                    <select
+                      value={ocrEditData.tipo_custo || ''}
+                      onChange={(e) => setOcrEditData((d: any) => ({ ...d, tipo_custo: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="FIXO">Fixo (aluguel, salários, assinaturas)</option>
+                      <option value="VARIAVEL">Variável (comissões, frete, marketing)</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Itens extraídos */}
