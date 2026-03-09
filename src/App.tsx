@@ -11,6 +11,8 @@ import Integracoes from '@/pages/Integracoes';
 import Conciliacao from '@/pages/Conciliacao';
 import Contrapartes from '@/pages/Contrapartes';
 import Documentos from '@/pages/Documentos';
+import Conciliacao from './pages/Conciliacao';
+import Insights from './pages/Insights';
 
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -36,6 +38,8 @@ export default function App() {
         <Route path="/conciliacao" element={<Conciliacao />} />
         <Route path="/contrapartes" element={<Contrapartes />} />
         <Route path="/documentos" element={<Documentos />} />
+        <Route path="/conciliacao" element={<Conciliacao />} />
+        <Route path="/insights" element={<Insights />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

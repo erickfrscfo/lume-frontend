@@ -1,567 +1,207 @@
-import { useState, useEffect, useCallback } from 'react';
-import { documentsApi, counterpartiesApi } from '@/lib/api';
+import React, { useState, useEffect } from 'react';
 import {
-  FileText,
-  Plus,
-  Search,
-  Edit3,
-  Trash2,
-  X,
-  Loader2,
-  Receipt,
-  FileCheck,
-  FileArchive,
-  Filter,
-  ChevronDown,
-  ChevronUp,
+  Plus, Search, Edit2, Trash2, FileText, Loader2, CheckCircle,
+  XCircle, X, AlertTriangle, Download, Eye, Calendar
 } from 'lucide-react';
+import { documentsApi, counterpartiesApi } from '../lib/api';
 
 interface Document {
   id: string;
-  type: 'INVOICE' | 'RECEIPT' | 'BANK_STATEMENT' | 'CONTRACT' | 'OTHER';
   number: string;
-  issueDate: string;
+  type: string;
+  description: string;
   amount: number;
-  description?: string;
-  status: 'ACTIVE' | 'CANCELLED' | 'ARCHIVED';
-  counterpartyId?: string;
-  fileUrl?: string;
-  counterparty?: { id: string; name: string; document?: string };
-  reconciliation?: { id: string; createdAt: string };
+  issueDate: string;
+  dueDate: string;
+  status: string;
+  counterpartyId: string;
+  counterparty?: { id: string; name: string };
+  notes: string;
   createdAt: string;
 }
 
-interface Counterparty {
-  id: string;
-  name: string;
-  document?: string;
-}
+interface Counterparty { id: string; name: string; }
 
-const typeLabels: Record<string, { label: string; icon: any; color: string; bg: string }> = {
-  INVOICE: { label: 'Nota Fiscal', icon: FileText, color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
-  RECEIPT: { label: 'Recibo', icon: Receipt, color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
-  BANK_STATEMENT: { label: 'Extrato', icon: FileCheck, color: '#eab308', bg: 'rgba(234,179,8,0.15)' },
-  CONTRACT: { label: 'Contrato', icon: FileArchive, color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
-  OTHER: { label: 'Outro', icon: FileText, color: '#64748b', bg: 'rgba(100,116,139,0.15)' },
-};
+const docTypes = [
+  { value: 'NF', label: 'Nota Fiscal' },
+  { value: 'NFS', label: 'NFS-e' },
+  { value: 'RECEIPT', label: 'Recibo' },
+  { value: 'INVOICE', label: 'Fatura' },
+  { value: 'CONTRACT', label: 'Contrato' },
+  { value: 'STATEMENT', label: 'Extrato' },
+  { value: 'OTHER', label: 'Outro' },
+];
 
-const statusLabels: Record<string, { label: string; color: string; bg: string }> = {
-  ACTIVE: { label: 'Ativo', color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
-  CANCELLED: { label: 'Cancelado', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-  ARCHIVED: { label: 'Arquivado', color: '#64748b', bg: 'rgba(100,116,139,0.15)' },
-};
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-
-const formatDate = (dateStr: string) =>
-  new Date(dateStr).toLocaleDateString('pt-BR');
+const emptyForm = { number: '', type: 'NF', description: '', amount: '', issueDate: '', dueDate: '', counterpartyId: '', notes: '' };
 
 export default function Documentos() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
-  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const [form, setForm] = useState<any>({ ...emptyForm });
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [actionResult, setActionResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  const [filters, setFilters] = useState({
-    search: '',
-    type: '',
-    status: '',
-    startDate: '',
-    endDate: '',
-  });
+  useEffect(() => { loadData(); }, [filterType]);
 
-  const [form, setForm] = useState({
-    type: 'INVOICE' as Document['type'],
-    number: '',
-    issueDate: '',
-    amount: '',
-    description: '',
-    counterpartyId: '',
-    fileUrl: '',
-  });
-
-  const loadDocuments = useCallback(async (page = 1) => {
+  const loadData = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const params: any = { page, limit: 20 };
-      if (filters.search) params.search = filters.search;
-      if (filters.type) params.type = filters.type;
-      if (filters.status) params.status = filters.status;
-      if (filters.startDate) params.startDate = filters.startDate;
-      if (filters.endDate) params.endDate = filters.endDate;
-
-      const res = await documentsApi.list(params);
-      const data = res.data;
-      setDocuments(data.data || []);
-      setPagination(data.pagination || { page: 1, total: 0, totalPages: 0 });
-    } catch (err) {
-      console.error('Erro ao carregar documentos:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
-
-  const loadCounterparties = useCallback(async () => {
-    try {
-      const res = await counterpartiesApi.list({ limit: 100, isActive: true });
-      setCounterparties(res.data.data || []);
-    } catch (err) {
-      console.error('Erro ao carregar contrapartes:', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadDocuments();
-    loadCounterparties();
-  }, []);
-
-  useEffect(() => {
-    loadDocuments();
-  }, [filters]);
-
-  const openCreateModal = () => {
-    setEditingId(null);
-    setForm({ type: 'INVOICE', number: '', issueDate: '', amount: '', description: '', counterpartyId: '', fileUrl: '' });
-    setShowModal(true);
-  };
-
-  const openEditModal = (doc: Document) => {
-    setEditingId(doc.id);
-    setForm({
-      type: doc.type,
-      number: doc.number,
-      issueDate: doc.issueDate ? doc.issueDate.split('T')[0] : '',
-      amount: String(doc.amount),
-      description: doc.description || '',
-      counterpartyId: doc.counterpartyId || '',
-      fileUrl: doc.fileUrl || '',
-    });
-    setShowModal(true);
+      const [docRes, cpRes] = await Promise.all([
+        documentsApi.list({ type: filterType || undefined, search: search || undefined }),
+        counterpartiesApi.list({ isActive: true }).catch(() => ({ data: { data: [] } })),
+      ]);
+      setDocuments(docRes.data?.data || []);
+      setCounterparties(cpRes.data?.data || []);
+    } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
   const handleSave = async () => {
-    if (!form.number.trim() || !form.issueDate || !form.amount) {
-      alert('Número, data de emissão e valor são obrigatórios');
-      return;
-    }
-    setSaving(true);
+    if (!form.number || !form.type) { setFormError('Número e tipo são obrigatórios'); return; }
+    setSaving(true); setFormError('');
     try {
-      if (editingId) {
-        await documentsApi.update(editingId, {
-          number: form.number,
-          issueDate: form.issueDate,
-          amount: parseFloat(form.amount),
-          description: form.description || undefined,
-          counterpartyId: form.counterpartyId || undefined,
-          fileUrl: form.fileUrl || undefined,
-        });
-      } else {
-        await documentsApi.create({
-          type: form.type,
-          number: form.number,
-          issueDate: form.issueDate,
-          amount: parseFloat(form.amount),
-          description: form.description || undefined,
-          counterpartyId: form.counterpartyId || undefined,
-          fileUrl: form.fileUrl || undefined,
-        });
-      }
-      setShowModal(false);
-      await loadDocuments(pagination.page);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Erro ao salvar documento');
-    } finally {
-      setSaving(false);
-    }
+      const payload = { ...form, amount: form.amount ? parseFloat(form.amount) : undefined };
+      if (editingId) { await documentsApi.update(editingId, payload); }
+      else { await documentsApi.create(payload); }
+      setActionResult({ success: true, message: editingId ? 'Documento atualizado!' : 'Documento criado!' });
+      setShowForm(false); setEditingId(null); setForm({ ...emptyForm }); loadData();
+    } catch (err: any) { setFormError(err.response?.data?.error || 'Erro ao salvar'); }
+    finally { setSaving(false); setTimeout(() => setActionResult(null), 3000); }
   };
 
-  const handleArchive = async (id: string) => {
-    if (!confirm('Deseja realmente arquivar este documento?')) return;
-    try {
-      await documentsApi.delete(id);
-      await loadDocuments(pagination.page);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Erro ao arquivar documento');
-    }
+  const handleDelete = async (id: string) => {
+    try { await documentsApi.delete(id); setActionResult({ success: true, message: 'Documento removido!' }); loadData(); }
+    catch { setActionResult({ success: false, message: 'Erro ao remover' }); }
+    setTimeout(() => setActionResult(null), 3000);
   };
+
+  const formatCurrency = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+  const formatDate = (d: string) => d ? new Date(d).toLocaleDateString('pt-BR') : '-';
+  const getTypeLabel = (t: string) => docTypes.find(d => d.value === t)?.label || t;
 
   return (
-    <div className="p-6 space-y-6" style={{ color: '#e2e8f0' }}>
-      {/* Header */}
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <FileText className="w-7 h-7" style={{ color: '#f97316' }} />
-            Documentos Fiscais
-          </h1>
-          <p className="text-sm mt-1" style={{ color: '#64748b' }}>
-            Gerencie notas fiscais, recibos, extratos e contratos
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Documentos Fiscais</h1>
+          <p className="text-gray-500 mt-1">Gerencie notas fiscais, recibos e contratos</p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all"
-          style={{ backgroundColor: '#f97316', color: '#fff' }}
-        >
-          <Plus className="w-4 h-4" />
-          Novo Documento
+        <button onClick={() => { setShowForm(true); setEditingId(null); setForm({ ...emptyForm }); setFormError(''); }}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <Plus className="w-4 h-4" /> Novo Documento
         </button>
       </div>
 
-      {/* Filtros */}
-      <div className="rounded-xl p-4" style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex-1 min-w-[200px] relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#64748b' }} />
-            <input
-              type="text"
-              placeholder="Buscar por número ou descrição..."
-              value={filters.search}
-              onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-              className="w-full pl-10 pr-4 py-2 rounded-lg text-sm"
-              style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-            />
-          </div>
-
-          <select
-            value={filters.type}
-            onChange={e => setFilters(f => ({ ...f, type: e.target.value }))}
-            className="px-3 py-2 rounded-lg text-sm"
-            style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-          >
-            <option value="">Todos os tipos</option>
-            <option value="INVOICE">Nota Fiscal</option>
-            <option value="RECEIPT">Recibo</option>
-            <option value="BANK_STATEMENT">Extrato</option>
-            <option value="CONTRACT">Contrato</option>
-            <option value="OTHER">Outro</option>
-          </select>
-
-          <select
-            value={filters.status}
-            onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
-            className="px-3 py-2 rounded-lg text-sm"
-            style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-          >
-            <option value="">Todos os status</option>
-            <option value="ACTIVE">Ativos</option>
-            <option value="CANCELLED">Cancelados</option>
-            <option value="ARCHIVED">Arquivados</option>
-          </select>
-
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
-            style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}
-          >
-            <Filter className="w-4 h-4" />
-            {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </button>
+      {actionResult && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${actionResult.success ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+          {actionResult.success ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+          <span className="text-sm font-medium">{actionResult.message}</span>
         </div>
+      )}
 
-        {showFilters && (
-          <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <div>
-              <label className="text-xs" style={{ color: '#64748b' }}>Data início</label>
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={e => setFilters(f => ({ ...f, startDate: e.target.value }))}
-                className="block w-full px-3 py-1.5 rounded-lg text-sm mt-1"
-                style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-              />
-            </div>
-            <div>
-              <label className="text-xs" style={{ color: '#64748b' }}>Data fim</label>
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={e => setFilters(f => ({ ...f, endDate: e.target.value }))}
-                className="block w-full px-3 py-1.5 rounded-lg text-sm mt-1"
-                style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-              />
-            </div>
-            <button
-              onClick={() => setFilters({ search: '', type: '', status: '', startDate: '', endDate: '' })}
-              className="mt-5 text-xs px-3 py-1.5 rounded-lg"
-              style={{ color: '#ef4444' }}
-            >
-              Limpar filtros
-            </button>
-          </div>
-        )}
+      <div className="flex gap-3">
+        <div className="flex-1 relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input type="text" placeholder="Buscar por número, descrição..." value={search}
+            onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && loadData()}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+          <option value="">Todos os tipos</option>
+          {docTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
       </div>
 
-      {/* Tabela */}
-      <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.06)' }}>
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#f97316' }} />
-          </div>
-        ) : documents.length === 0 ? (
-          <div className="text-center py-20">
-            <FileText className="w-12 h-12 mx-auto mb-3" style={{ color: '#334155' }} />
-            <p className="text-sm" style={{ color: '#64748b' }}>Nenhum documento encontrado</p>
-            <button
-              onClick={openCreateModal}
-              className="mt-3 text-sm font-medium"
-              style={{ color: '#f97316' }}
-            >
-              Criar primeiro documento
-            </button>
-          </div>
-        ) : (
-          <>
-            <table className="w-full">
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Tipo</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Número</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Data Emissão</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Valor</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Contraparte</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Status</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Conciliado</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {documents.map((doc) => {
-                  const typeInfo = typeLabels[doc.type] || typeLabels.OTHER;
-                  const statusInfo = statusLabels[doc.status] || statusLabels.ACTIVE;
-                  const IconComponent = typeInfo.icon;
-                  return (
-                    <tr
-                      key={doc.id}
-                      className="transition-colors"
-                      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)')}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: typeInfo.bg }}>
-                            <IconComponent className="w-3.5 h-3.5" style={{ color: typeInfo.color }} />
-                          </div>
-                          <span className="text-xs font-medium" style={{ color: typeInfo.color }}>{typeInfo.label}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-mono font-medium text-white">{doc.number}</p>
-                        {doc.description && <p className="text-xs mt-0.5 truncate max-w-[200px]" style={{ color: '#64748b' }}>{doc.description}</p>}
-                      </td>
-                      <td className="px-4 py-3 text-sm" style={{ color: '#94a3b8' }}>{formatDate(doc.issueDate)}</td>
-                      <td className="px-4 py-3 text-sm text-right font-mono font-medium text-white">
-                        {formatCurrency(doc.amount)}
-                      </td>
-                      <td className="px-4 py-3 text-sm" style={{ color: '#94a3b8' }}>
-                        {doc.counterparty?.name || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium"
-                          style={{ backgroundColor: statusInfo.bg, color: statusInfo.color }}
-                        >
-                          {statusInfo.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {doc.reconciliation ? (
-                          <span className="text-xs" style={{ color: '#22c55e' }}>Sim</span>
-                        ) : (
-                          <span className="text-xs" style={{ color: '#64748b' }}>Não</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => openEditModal(doc)}
-                            className="p-1.5 rounded-lg transition-colors"
-                            style={{ color: '#64748b' }}
-                            title="Editar"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          {doc.status === 'ACTIVE' && (
-                            <button
-                              onClick={() => handleArchive(doc.id)}
-                              className="p-1.5 rounded-lg transition-colors"
-                              style={{ color: '#64748b' }}
-                              title="Arquivar"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {pagination.totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                <p className="text-xs" style={{ color: '#64748b' }}>
-                  Página {pagination.page} de {pagination.totalPages} ({pagination.total} documentos)
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => loadDocuments(pagination.page - 1)}
-                    disabled={pagination.page <= 1}
-                    className="px-3 py-1 rounded text-sm disabled:opacity-30"
-                    style={{ backgroundColor: '#1e293b', color: '#94a3b8' }}
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    onClick={() => loadDocuments(pagination.page + 1)}
-                    disabled={pagination.page >= pagination.totalPages}
-                    className="px-3 py-1 rounded text-sm disabled:opacity-30"
-                    style={{ backgroundColor: '#1e293b', color: '#94a3b8' }}
-                  >
-                    Próxima
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Modal Criar/Editar */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-          <div className="w-full max-w-md rounded-xl p-6 max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-white">
-                {editingId ? 'Editar Documento' : 'Novo Documento'}
-              </h3>
-              <button onClick={() => setShowModal(false)}>
-                <X className="w-5 h-5" style={{ color: '#64748b' }} />
-              </button>
+      {showForm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">{editingId ? 'Editar Documento' : 'Novo Documento'}</h3>
+              <button onClick={() => setShowForm(false)} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5 text-gray-500" /></button>
             </div>
-
             <div className="space-y-3">
-              {!editingId && (
-                <div>
-                  <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>Tipo *</label>
-                  <select
-                    value={form.type}
-                    onChange={e => setForm(f => ({ ...f, type: e.target.value as any }))}
-                    className="w-full mt-1 px-3 py-2 rounded-lg text-sm"
-                    style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-                  >
-                    <option value="INVOICE">Nota Fiscal</option>
-                    <option value="RECEIPT">Recibo</option>
-                    <option value="BANK_STATEMENT">Extrato Bancário</option>
-                    <option value="CONTRACT">Contrato</option>
-                    <option value="OTHER">Outro</option>
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>Número *</label>
-                <input
-                  type="text"
-                  value={form.number}
-                  onChange={e => setForm(f => ({ ...f, number: e.target.value }))}
-                  className="w-full mt-1 px-3 py-2 rounded-lg text-sm"
-                  style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-                  placeholder="NF-001234"
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>Data de Emissão *</label>
-                  <input
-                    type="date"
-                    value={form.issueDate}
-                    onChange={e => setForm(f => ({ ...f, issueDate: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2 rounded-lg text-sm"
-                    style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>Valor (R$) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={form.amount}
-                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2 rounded-lg text-sm"
-                    style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-                    placeholder="0,00"
-                  />
-                </div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Número *</label>
+                  <input type="text" value={form.number} onChange={(e) => setForm((f: any) => ({ ...f, number: e.target.value }))} placeholder="NF-001" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Tipo *</label>
+                  <select value={form.type} onChange={(e) => setForm((f: any) => ({ ...f, type: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    {docTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
               </div>
-
-              <div>
-                <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>Contraparte</label>
-                <select
-                  value={form.counterpartyId}
-                  onChange={e => setForm(f => ({ ...f, counterpartyId: e.target.value }))}
-                  className="w-full mt-1 px-3 py-2 rounded-lg text-sm"
-                  style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-                >
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                <input type="text" value={form.description} onChange={(e) => setForm((f: any) => ({ ...f, description: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+              <div className="grid grid-cols-3 gap-3">
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Valor (R$)</label>
+                  <input type="number" step="0.01" value={form.amount} onChange={(e) => setForm((f: any) => ({ ...f, amount: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Emissão</label>
+                  <input type="date" value={form.issueDate} onChange={(e) => setForm((f: any) => ({ ...f, issueDate: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Vencimento</label>
+                  <input type="date" value={form.dueDate} onChange={(e) => setForm((f: any) => ({ ...f, dueDate: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+              </div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Contraparte</label>
+                <select value={form.counterpartyId} onChange={(e) => setForm((f: any) => ({ ...f, counterpartyId: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
                   <option value="">Selecione...</option>
-                  {counterparties.map(cp => (
-                    <option key={cp.id} value={cp.id}>{cp.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>Descrição</label>
-                <textarea
-                  value={form.description}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  rows={2}
-                  className="w-full mt-1 px-3 py-2 rounded-lg text-sm resize-none"
-                  style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-                  placeholder="Descrição do documento..."
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>URL do Arquivo</label>
-                <input
-                  type="url"
-                  value={form.fileUrl}
-                  onChange={e => setForm(f => ({ ...f, fileUrl: e.target.value }))}
-                  className="w-full mt-1 px-3 py-2 rounded-lg text-sm"
-                  style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-                  placeholder="https://..."
-                />
-              </div>
+                  {counterparties.map(cp => <option key={cp.id} value={cp.id}>{cp.name}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+                <textarea rows={2} value={form.notes} onChange={(e) => setForm((f: any) => ({ ...f, notes: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none" /></div>
             </div>
-
-            <div className="flex gap-3 mt-5">
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium"
-                style={{ backgroundColor: '#374151', color: '#94a3b8' }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
-                style={{ backgroundColor: '#f97316', color: '#fff' }}
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {editingId ? 'Salvar' : 'Criar'}
-              </button>
+            {formError && <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{formError}</div>}
+            <div className="flex gap-3 pt-2">
+              <button onClick={handleSave} disabled={saving} className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} {editingId ? 'Atualizar' : 'Criar'}</button>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2.5 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
+      ) : documents.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="font-medium text-gray-700">Nenhum documento encontrado</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Número</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descrição</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contraparte</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Vencimento</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {documents.map(doc => (
+                <tr key={doc.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{doc.number}</td>
+                  <td className="px-4 py-3"><span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{getTypeLabel(doc.type)}</span></td>
+                  <td className="px-4 py-3 text-sm text-gray-600 truncate max-w-[200px]">{doc.description || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{doc.counterparty?.name || '-'}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">{doc.amount ? formatCurrency(doc.amount) : '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 text-center">{formatDate(doc.dueDate)}</td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <button onClick={() => { setForm({ number: doc.number, type: doc.type, description: doc.description || '', amount: doc.amount?.toString() || '', issueDate: doc.issueDate?.split('T')[0] || '', dueDate: doc.dueDate?.split('T')[0] || '', counterpartyId: doc.counterpartyId || '', notes: doc.notes || '' }); setEditingId(doc.id); setShowForm(true); }}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => handleDelete(doc.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

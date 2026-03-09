@@ -13,6 +13,7 @@ import {
 import { ExplainButton } from '@/components/ExplainModal';
 import DateRangePicker from '@/components/DateRangePicker';
 import CostClassificationModal from '@/components/CostClassificationModal';
+import ConciliacaoDashboardBlock from '../components/ConciliacaoDashboardBlock';
 
 // ============================================
 // TYPES
@@ -939,7 +940,10 @@ export default function Dashboards() {
           <DRETable dreData={dreData} rawDreData={rawDreData} monthKeys={monthKeys} />
         </div>
       )}
+      {/* ========== CONCILIAÇÃO ========== */}
+      <ConciliacaoDashboardBlock />
 
+      
       {/* ========== COST CLASSIFICATION MODAL ========== */}
       <CostClassificationModal
         isOpen={showCostModal}

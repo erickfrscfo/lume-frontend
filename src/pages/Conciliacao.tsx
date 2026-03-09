@@ -1,253 +1,248 @@
-import { useState, useEffect, useCallback } from 'react';
-import { transactionsApi, reconciliationsApi, counterpartiesApi, documentsApi } from '@/lib/api';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  GitCompareArrows,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  Search,
-  Filter,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  X,
-  FileCheck,
-  Loader2,
+  Search, Filter, ChevronDown, ChevronUp, CheckCircle, XCircle,
+  Clock, AlertTriangle, DollarSign, FileText, Building2, Calendar,
+  ArrowUpDown, Loader2, Check, X, RotateCcw, Eye, ChevronLeft,
+  ChevronRight, Download, RefreshCw
 } from 'lucide-react';
+import { transactionsApi, counterpartiesApi, reconciliationsApi, documentsApi } from '../lib/api';
 
 interface Transaction {
   id: string;
+  date: string;
   description: string;
   amount: number;
-  date: string;
   tipo_transacao: 'INCOME' | 'EXPENSE';
+  status: string;
+  source: string;
+  categoryId: string;
+  counterpartyId: string;
   category?: { id: string; name: string; code: string };
-  detail?: {
-    id: string;
-    reconciliationStatus: string;
-    counterpartyId?: string;
-    dueDate?: string;
-    paymentDate?: string;
-    documentNumber?: string;
-    counterparty?: { id: string; name: string };
-  };
+  counterparty?: { id: string; name: string };
+  detail?: TransactionDetail;
+  notes: string;
 }
 
-interface DashboardData {
-  summary: {
-    totalTransactions: number;
-    reconciled: number;
-    pending: number;
-    divergent: number;
-    partial: number;
-    percentReconciled: number;
-  };
-  byMethod: Array<{ method: string; count: number }>;
-  recentReconciliations: any[];
+interface TransactionDetail {
+  id: string;
+  reconciliationStatus: string;
+  dueDate: string;
+  paymentDate: string;
+  receiptDate: string;
+  documentNumber: string;
+  bankReference: string;
+  amountOriginal: number;
+  amountPaid: number;
+  amountReceived: number;
+  discount: number;
+  interest: number;
+  notes: string;
+  counterparty?: { id: string; name: string };
 }
 
 interface Counterparty {
   id: string;
   name: string;
-  document?: string;
   type: string;
 }
 
 interface Document {
   id: string;
-  type: string;
   number: string;
+  type: string;
   amount: number;
-  issueDate: string;
+  description: string;
   counterparty?: { id: string; name: string };
 }
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-
-const formatDate = (dateStr: string) =>
-  new Date(dateStr).toLocaleDateString('pt-BR');
-
-const statusColors: Record<string, { bg: string; text: string; label: string }> = {
-  RECONCILED: { bg: 'rgba(34,197,94,0.15)', text: '#22c55e', label: 'Conciliado' },
-  PENDING: { bg: 'rgba(234,179,8,0.15)', text: '#eab308', label: 'Pendente' },
-  DIVERGENT: { bg: 'rgba(239,68,68,0.15)', text: '#ef4444', label: 'Divergente' },
-  PARTIAL: { bg: 'rgba(59,130,246,0.15)', text: '#3b82f6', label: 'Parcial' },
-};
-
 export default function Conciliacao() {
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
-  const [loading, setLoading] = useState(true);
-  const [reconciling, setReconciling] = useState<string | null>(null);
-  const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
-  const [showReconcileModal, setShowReconcileModal] = useState(false);
-  const [currentTransaction, setCurrentTransaction] = useState<Transaction | null>(null);
+  const [dashboard, setDashboard] = useState<any>(null);
 
-  // Filtros
-  const [filters, setFilters] = useState({
-    search: '',
-    reconciliationStatus: '',
-    tipo_transacao: '',
-    startDate: '',
-    endDate: '',
-  });
+  // Filters
+  const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterRecon, setFilterRecon] = useState('');
+  const [filterCounterparty, setFilterCounterparty] = useState('');
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Form de conciliação
-  const [reconcileForm, setReconcileForm] = useState({
-    counterpartyId: '',
-    documentId: '',
-    notes: '',
-  });
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  const loadDashboard = useCallback(async () => {
+  // Actions
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    loadData();
+  }, [page, filterType, filterStatus, filterRecon, filterCounterparty, dateStart, dateEnd]);
+
+  const loadData = async () => {
+    setLoading(true);
     try {
-      const res = await reconciliationsApi.dashboard();
-      setDashboard(res.data.data || res.data);
-    } catch (err) {
-      console.error('Erro ao carregar dashboard:', err);
-    }
-  }, []);
+      const [txRes, cpRes, docRes, dashRes] = await Promise.all([
+        transactionsApi.list({
+          page,
+          limit: 20,
+          tipo_transacao: filterType || undefined,
+          status: filterStatus || undefined,
+          reconciliationStatus: filterRecon || undefined,
+          counterpartyId: filterCounterparty || undefined,
+          startDate: dateStart || undefined,
+          endDate: dateEnd || undefined,
+          search: search || undefined,
+        }),
+        counterpartiesApi.list({ isActive: true }).catch(() => ({ data: { data: [] } })),
+        documentsApi.list({ status: 'ACTIVE' }).catch(() => ({ data: { data: [] } })),
+        reconciliationsApi.dashboard().catch(() => ({ data: null })),
+      ]);
 
-  const loadTransactions = useCallback(async (page = 1) => {
-    try {
-      setLoading(true);
-      const params: any = { page, limit: 20 };
-      if (filters.search) params.search = filters.search;
-      if (filters.reconciliationStatus) params.reconciliationStatus = filters.reconciliationStatus;
-      if (filters.tipo_transacao) params.tipo_transacao = filters.tipo_transacao;
-      if (filters.startDate) params.startDate = filters.startDate;
-      if (filters.endDate) params.endDate = filters.endDate;
-
-      const res = await transactionsApi.list(params);
-      const data = res.data;
-      setTransactions(data.data || []);
-      setPagination(data.pagination || { page: 1, total: 0, totalPages: 0 });
+      const txData = txRes.data;
+      setTransactions(txData.data || []);
+      setTotalPages(txData.pagination?.totalPages || 1);
+      setTotal(txData.pagination?.total || 0);
+      setCounterparties(cpRes.data?.data || []);
+      setDocuments(docRes.data?.data || []);
+      setDashboard(dashRes.data?.data || dashRes.data || null);
     } catch (err) {
-      console.error('Erro ao carregar transações:', err);
+      console.error('Erro ao carregar dados:', err);
     } finally {
       setLoading(false);
     }
-  }, [filters]);
-
-  const loadCounterparties = useCallback(async () => {
-    try {
-      const res = await counterpartiesApi.list({ limit: 100, isActive: true });
-      setCounterparties(res.data.data || []);
-    } catch (err) {
-      console.error('Erro ao carregar contrapartes:', err);
-    }
-  }, []);
-
-  const loadDocuments = useCallback(async () => {
-    try {
-      const res = await documentsApi.list({ limit: 100, status: 'ACTIVE' });
-      setDocuments(res.data.data || []);
-    } catch (err) {
-      console.error('Erro ao carregar documentos:', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadDashboard();
-    loadTransactions();
-    loadCounterparties();
-    loadDocuments();
-  }, []);
-
-  useEffect(() => {
-    loadTransactions();
-  }, [filters]);
-
-  const handleReconcile = async () => {
-    if (!currentTransaction) return;
-    setReconciling(currentTransaction.id);
-    try {
-      await reconciliationsApi.reconcile({
-        transactionId: currentTransaction.id,
-        counterpartyId: reconcileForm.counterpartyId || undefined,
-        documentId: reconcileForm.documentId || undefined,
-        notes: reconcileForm.notes || undefined,
-      });
-      setShowReconcileModal(false);
-      setCurrentTransaction(null);
-      setReconcileForm({ counterpartyId: '', documentId: '', notes: '' });
-      await Promise.all([loadDashboard(), loadTransactions(pagination.page)]);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Erro ao conciliar');
-    } finally {
-      setReconciling(null);
-    }
   };
 
-  const handleBatchReconcile = async () => {
-    if (selectedTransactions.size === 0) return;
-    setReconciling('batch');
-    try {
-      const items = Array.from(selectedTransactions).map(id => ({ transactionId: id }));
-      const res = await reconciliationsApi.batchReconcile({ items, notes: 'Conciliação em lote' });
-      const result = res.data.data;
-      alert(`Conciliação em lote: ${result.reconciled} conciliadas, ${result.failed} falharam`);
-      setSelectedTransactions(new Set());
-      await Promise.all([loadDashboard(), loadTransactions(pagination.page)]);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Erro na conciliação em lote');
-    } finally {
-      setReconciling(null);
-    }
+  const handleSearch = () => {
+    setPage(1);
+    loadData();
   };
 
-  const handleUndoReconciliation = async (transactionId: string) => {
-    if (!confirm('Deseja realmente desfazer esta conciliação?')) return;
+  // Mark as paid/received
+  const handleMarkPaid = async (tx: Transaction) => {
+    setActionLoading(tx.id);
     try {
-      // Precisamos buscar o reconciliation ID pelo transaction
-      const txRes = await transactionsApi.getById(transactionId);
-      const tx = txRes.data.data;
-      if (tx.detail?.reconciliation?.id) {
-        await reconciliationsApi.undo(tx.detail.reconciliation.id);
-        await Promise.all([loadDashboard(), loadTransactions(pagination.page)]);
+      if (tx.tipo_transacao === 'EXPENSE') {
+        await transactionsApi.markPaid(tx.id, {
+          paymentDate: new Date().toISOString().split('T')[0],
+          amountPaid: tx.amount,
+        });
+      } else {
+        await transactionsApi.markReceived(tx.id, {
+          receiptDate: new Date().toISOString().split('T')[0],
+          amountReceived: tx.amount,
+        });
       }
+      setActionResult({ id: tx.id, success: true, message: tx.tipo_transacao === 'EXPENSE' ? 'Marcado como pago!' : 'Marcado como recebido!' });
+      loadData();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Erro ao desfazer conciliação');
+      setActionResult({ id: tx.id, success: false, message: err.response?.data?.error || 'Erro ao atualizar' });
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setActionResult(null), 3000);
     }
   };
 
-  const toggleSelectTransaction = (id: string) => {
-    const newSet = new Set(selectedTransactions);
-    if (newSet.has(id)) {
-      newSet.delete(id);
+  // Batch reconcile
+  const handleBatchReconcile = async () => {
+    if (selectedIds.size === 0) return;
+    setActionLoading('batch');
+    try {
+      const items = Array.from(selectedIds).map(id => ({ transactionId: id }));
+      await reconciliationsApi.batchReconcile({ items, notes: 'Conciliação em lote' });
+      setActionResult({ id: 'batch', success: true, message: `${selectedIds.size} transações conciliadas!` });
+      setSelectedIds(new Set());
+      loadData();
+    } catch (err: any) {
+      setActionResult({ id: 'batch', success: false, message: err.response?.data?.error || 'Erro na conciliação em lote' });
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setActionResult(null), 3000);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === transactions.length) {
+      setSelectedIds(new Set());
     } else {
-      newSet.add(id);
+      setSelectedIds(new Set(transactions.map(t => t.id)));
     }
-    setSelectedTransactions(newSet);
   };
 
-  const getStatusInfo = (transaction: Transaction) => {
-    const status = transaction.detail?.reconciliationStatus || 'PENDING';
-    return statusColors[status] || statusColors.PENDING;
+  const getStatusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      COMPLETED: 'bg-green-100 text-green-700',
+      PENDING: 'bg-yellow-100 text-yellow-700',
+      OVERDUE: 'bg-red-100 text-red-700',
+      PARTIAL: 'bg-blue-100 text-blue-700',
+    };
+    const labels: Record<string, string> = {
+      COMPLETED: 'Concluído',
+      PENDING: 'Pendente',
+      OVERDUE: 'Vencido',
+      PARTIAL: 'Parcial',
+    };
+    return (
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
+        {labels[status] || status}
+      </span>
+    );
+  };
+
+  const getReconBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      RECONCILED: 'bg-green-100 text-green-700',
+      PENDING: 'bg-yellow-100 text-yellow-700',
+      DIVERGENT: 'bg-red-100 text-red-700',
+    };
+    const labels: Record<string, string> = {
+      RECONCILED: 'Conciliado',
+      PENDING: 'Pendente',
+      DIVERGENT: 'Divergente',
+    };
+    return (
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
+        {labels[status] || status}
+      </span>
+    );
+  };
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('pt-BR');
   };
 
   return (
-    <div className="p-6 space-y-6" style={{ color: '#e2e8f0' }}>
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <GitCompareArrows className="w-7 h-7" style={{ color: '#3b82f6' }} />
-            Conciliação Bancária
-          </h1>
-          <p className="text-sm mt-1" style={{ color: '#64748b' }}>
-            Gerencie e reconcilie suas transações financeiras
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Conciliação Bancária</h1>
+          <p className="text-gray-500 mt-1">Gerencie e concilie suas transações financeiras</p>
         </div>
         <button
-          onClick={() => { loadDashboard(); loadTransactions(); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
-          style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}
+          onClick={loadData}
+          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
         >
           <RefreshCw className="w-4 h-4" />
           Atualizar
@@ -256,365 +251,352 @@ export default function Conciliacao() {
 
       {/* Dashboard Cards */}
       {dashboard && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="rounded-xl p-4" style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <p className="text-xs font-medium" style={{ color: '#64748b' }}>Total Transações</p>
-            <p className="text-2xl font-bold text-white mt-1">{dashboard.summary.totalTransactions}</p>
-          </div>
-          <div className="rounded-xl p-4" style={{ backgroundColor: '#111827', border: '1px solid rgba(34,197,94,0.2)' }}>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" style={{ color: '#22c55e' }} />
-              <p className="text-xs font-medium" style={{ color: '#64748b' }}>Conciliadas</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
+              <DollarSign className="w-4 h-4" />
+              Total Transações
             </div>
-            <p className="text-2xl font-bold mt-1" style={{ color: '#22c55e' }}>{dashboard.summary.reconciled}</p>
+            <p className="text-2xl font-bold text-gray-900">{dashboard.totalTransactions || total}</p>
           </div>
-          <div className="rounded-xl p-4" style={{ backgroundColor: '#111827', border: '1px solid rgba(234,179,8,0.2)' }}>
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4" style={{ color: '#eab308' }} />
-              <p className="text-xs font-medium" style={{ color: '#64748b' }}>Pendentes</p>
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-green-600 text-sm mb-1">
+              <CheckCircle className="w-4 h-4" />
+              Conciliadas
             </div>
-            <p className="text-2xl font-bold mt-1" style={{ color: '#eab308' }}>{dashboard.summary.pending}</p>
+            <p className="text-2xl font-bold text-green-700">{dashboard.reconciled || 0}</p>
           </div>
-          <div className="rounded-xl p-4" style={{ backgroundColor: '#111827', border: '1px solid rgba(239,68,68,0.2)' }}>
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" style={{ color: '#ef4444' }} />
-              <p className="text-xs font-medium" style={{ color: '#64748b' }}>Divergentes</p>
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-yellow-600 text-sm mb-1">
+              <Clock className="w-4 h-4" />
+              Pendentes
             </div>
-            <p className="text-2xl font-bold mt-1" style={{ color: '#ef4444' }}>{dashboard.summary.divergent}</p>
+            <p className="text-2xl font-bold text-yellow-700">{dashboard.pending || 0}</p>
           </div>
-          <div className="rounded-xl p-4" style={{ backgroundColor: '#111827', border: '1px solid rgba(59,130,246,0.2)' }}>
-            <div className="flex items-center gap-2">
-              <FileCheck className="w-4 h-4" style={{ color: '#3b82f6' }} />
-              <p className="text-xs font-medium" style={{ color: '#64748b' }}>% Conciliado</p>
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-red-600 text-sm mb-1">
+              <AlertTriangle className="w-4 h-4" />
+              Divergentes
             </div>
-            <p className="text-2xl font-bold mt-1" style={{ color: '#3b82f6' }}>{dashboard.summary.percentReconciled}%</p>
+            <p className="text-2xl font-bold text-red-700">{dashboard.divergent || 0}</p>
           </div>
         </div>
       )}
 
-      {/* Filtros e Ações */}
-      <div className="rounded-xl p-4" style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex-1 min-w-[200px] relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#64748b' }} />
+      {/* Search & Filters */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+        <div className="flex gap-3">
+          <div className="flex-1 relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar transações..."
-              value={filters.search}
-              onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-              className="w-full pl-10 pr-4 py-2 rounded-lg text-sm"
-              style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
+              placeholder="Buscar por descrição, contraparte..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-
-          <select
-            value={filters.reconciliationStatus}
-            onChange={e => setFilters(f => ({ ...f, reconciliationStatus: e.target.value }))}
-            className="px-3 py-2 rounded-lg text-sm"
-            style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
+          <button
+            onClick={handleSearch}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            <option value="">Todos os status</option>
-            <option value="PENDING">Pendentes</option>
-            <option value="RECONCILED">Conciliadas</option>
-            <option value="DIVERGENT">Divergentes</option>
-          </select>
-
-          <select
-            value={filters.tipo_transacao}
-            onChange={e => setFilters(f => ({ ...f, tipo_transacao: e.target.value }))}
-            className="px-3 py-2 rounded-lg text-sm"
-            style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-          >
-            <option value="">Todos os tipos</option>
-            <option value="INCOME">Receitas</option>
-            <option value="EXPENSE">Despesas</option>
-          </select>
-
+            Buscar
+          </button>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
-            style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}
+            className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-all ${
+              showFilters ? 'bg-blue-50 border-blue-300 text-blue-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+            }`}
           >
             <Filter className="w-4 h-4" />
-            {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            Filtros
           </button>
-
-          {selectedTransactions.size > 0 && (
-            <button
-              onClick={handleBatchReconcile}
-              disabled={reconciling === 'batch'}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-              style={{ backgroundColor: '#22c55e', color: '#fff' }}
-            >
-              {reconciling === 'batch' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-              Conciliar {selectedTransactions.size} selecionadas
-            </button>
-          )}
         </div>
 
         {showFilters && (
-          <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <div>
-              <label className="text-xs" style={{ color: '#64748b' }}>Data início</label>
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={e => setFilters(f => ({ ...f, startDate: e.target.value }))}
-                className="block w-full px-3 py-1.5 rounded-lg text-sm mt-1"
-                style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-              />
-            </div>
-            <div>
-              <label className="text-xs" style={{ color: '#64748b' }}>Data fim</label>
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={e => setFilters(f => ({ ...f, endDate: e.target.value }))}
-                className="block w-full px-3 py-1.5 rounded-lg text-sm mt-1"
-                style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-              />
-            </div>
-            <button
-              onClick={() => setFilters({ search: '', reconciliationStatus: '', tipo_transacao: '', startDate: '', endDate: '' })}
-              className="mt-5 text-xs px-3 py-1.5 rounded-lg"
-              style={{ color: '#ef4444' }}
-            >
-              Limpar filtros
-            </button>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-3 border-t border-gray-200">
+            <select value={filterType} onChange={(e) => { setFilterType(e.target.value); setPage(1); }}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="">Todos os tipos</option>
+              <option value="INCOME">Receita</option>
+              <option value="EXPENSE">Despesa</option>
+            </select>
+            <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="">Todos os status</option>
+              <option value="PENDING">Pendente</option>
+              <option value="COMPLETED">Concluído</option>
+              <option value="OVERDUE">Vencido</option>
+              <option value="PARTIAL">Parcial</option>
+            </select>
+            <select value={filterRecon} onChange={(e) => { setFilterRecon(e.target.value); setPage(1); }}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="">Conciliação</option>
+              <option value="PENDING">Não conciliado</option>
+              <option value="RECONCILED">Conciliado</option>
+              <option value="DIVERGENT">Divergente</option>
+            </select>
+            <select value={filterCounterparty} onChange={(e) => { setFilterCounterparty(e.target.value); setPage(1); }}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="">Todas contrapartes</option>
+              {counterparties.map(cp => (
+                <option key={cp.id} value={cp.id}>{cp.name}</option>
+              ))}
+            </select>
+            <input type="date" value={dateStart} onChange={(e) => { setDateStart(e.target.value); setPage(1); }}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Data início" />
+            <input type="date" value={dateEnd} onChange={(e) => { setDateEnd(e.target.value); setPage(1); }}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Data fim" />
           </div>
         )}
       </div>
 
-      {/* Tabela de Transações */}
-      <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.06)' }}>
+      {/* Batch Actions */}
+      {selectedIds.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+          <span className="text-sm text-blue-700 font-medium">
+            {selectedIds.size} transação(ões) selecionada(s)
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={handleBatchReconcile}
+              disabled={actionLoading === 'batch'}
+              className="px-4 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {actionLoading === 'batch' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              Conciliar em Lote
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="px-3 py-1.5 text-gray-600 text-sm border border-gray-300 rounded-lg hover:bg-white"
+            >
+              Limpar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Result Toast */}
+      {actionResult && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
+          actionResult.success ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        }`}>
+          {actionResult.success ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+          <span className="text-sm font-medium">{actionResult.message}</span>
+        </div>
+      )}
+
+      {/* Transactions Table */}
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#3b82f6' }} />
+            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
           </div>
         ) : transactions.length === 0 ? (
-          <div className="text-center py-20">
-            <GitCompareArrows className="w-12 h-12 mx-auto mb-3" style={{ color: '#334155' }} />
-            <p className="text-sm" style={{ color: '#64748b' }}>Nenhuma transação encontrada</p>
-            <p className="text-xs mt-1" style={{ color: '#475569' }}>Importe transações na tela de Inserção de Dados</p>
+          <div className="text-center py-20 text-gray-500">
+            <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p className="font-medium">Nenhuma transação encontrada</p>
+            <p className="text-sm mt-1">Ajuste os filtros ou importe transações</p>
           </div>
         ) : (
           <>
             <table className="w-full">
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <th className="px-4 py-3 text-left text-xs font-medium" style={{ color: '#64748b' }}>
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-left">
                     <input
                       type="checkbox"
-                      onChange={e => {
-                        if (e.target.checked) {
-                          const pendingIds = transactions
-                            .filter(t => !t.detail || t.detail.reconciliationStatus !== 'RECONCILED')
-                            .map(t => t.id);
-                          setSelectedTransactions(new Set(pendingIds));
-                        } else {
-                          setSelectedTransactions(new Set());
-                        }
-                      }}
-                      className="rounded"
+                      checked={selectedIds.size === transactions.length && transactions.length > 0}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Data</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Descrição</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Categoria</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Valor</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Status</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider" style={{ color: '#64748b' }}>Ações</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descrição</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contraparte</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Conciliação</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Ações</th>
                 </tr>
               </thead>
-              <tbody>
-                {transactions.map((tx) => {
-                  const statusInfo = getStatusInfo(tx);
-                  const isReconciled = tx.detail?.reconciliationStatus === 'RECONCILED';
-                  return (
+              <tbody className="divide-y divide-gray-100">
+                {transactions.map((tx) => (
+                  <React.Fragment key={tx.id}>
                     <tr
-                      key={tx.id}
-                      className="transition-colors"
-                      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)')}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      className={`hover:bg-gray-50 transition-colors cursor-pointer ${
+                        expandedId === tx.id ? 'bg-blue-50' : ''
+                      }`}
+                      onClick={() => setExpandedId(expandedId === tx.id ? null : tx.id)}
                     >
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(tx.id)}
+                          onChange={() => toggleSelect(tx.id)}
+                          className="rounded border-gray-300"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                        {formatDate(tx.date)}
+                      </td>
                       <td className="px-4 py-3">
-                        {!isReconciled && (
-                          <input
-                            type="checkbox"
-                            checked={selectedTransactions.has(tx.id)}
-                            onChange={() => toggleSelectTransaction(tx.id)}
-                            className="rounded"
-                          />
+                        <div className="text-sm font-medium text-gray-900 truncate max-w-[250px]">
+                          {tx.description}
+                        </div>
+                        {tx.category && (
+                          <div className="text-xs text-gray-500">{tx.category.code} - {tx.category.name}</div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm" style={{ color: '#94a3b8' }}>{formatDate(tx.date)}</td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-white truncate max-w-[250px]">{tx.description}</p>
-                        {tx.detail?.counterparty && (
-                          <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>{tx.detail.counterparty.name}</p>
-                        )}
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {tx.counterparty?.name || '-'}
                       </td>
-                      <td className="px-4 py-3 text-sm" style={{ color: '#94a3b8' }}>
-                        {tx.category?.name || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right font-mono font-medium" style={{ color: tx.tipo_transacao === 'INCOME' ? '#22c55e' : '#ef4444' }}>
-                        {tx.tipo_transacao === 'INCOME' ? '+' : '-'}{formatCurrency(Math.abs(tx.amount))}
+                      <td className={`px-4 py-3 text-sm font-semibold text-right whitespace-nowrap ${
+                        tx.tipo_transacao === 'INCOME' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {tx.tipo_transacao === 'INCOME' ? '+' : '-'} {formatCurrency(tx.amount)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span
-                          className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
-                          style={{ backgroundColor: statusInfo.bg, color: statusInfo.text }}
-                        >
-                          {statusInfo.label}
-                        </span>
+                        {getStatusBadge(tx.status || 'PENDING')}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {isReconciled ? (
+                        {getReconBadge(tx.detail?.reconciliationStatus || 'PENDING')}
+                      </td>
+                      <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1">
+                          {tx.status !== 'COMPLETED' && (
+                            <button
+                              onClick={() => handleMarkPaid(tx)}
+                              disabled={actionLoading === tx.id}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-md transition-colors"
+                              title={tx.tipo_transacao === 'EXPENSE' ? 'Marcar como pago' : 'Marcar como recebido'}
+                            >
+                              {actionLoading === tx.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Check className="w-4 h-4" />
+                              )}
+                            </button>
+                          )}
                           <button
-                            onClick={() => handleUndoReconciliation(tx.id)}
-                            className="text-xs px-2 py-1 rounded transition-colors"
-                            style={{ color: '#ef4444' }}
-                            title="Desfazer conciliação"
+                            onClick={() => setExpandedId(expandedId === tx.id ? null : tx.id)}
+                            className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-md transition-colors"
+                            title="Ver detalhes"
                           >
-                            Desfazer
+                            {expandedId === tx.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </button>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setCurrentTransaction(tx);
-                              setReconcileForm({ counterpartyId: '', documentId: '', notes: '' });
-                              setShowReconcileModal(true);
-                            }}
-                            className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
-                            style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}
-                          >
-                            Conciliar
-                          </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
-                  );
-                })}
+
+                    {/* Expanded Detail Row */}
+                    {expandedId === tx.id && (
+                      <tr>
+                        <td colSpan={8} className="bg-gray-50 px-6 py-4">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-500 block text-xs mb-0.5">Tipo</span>
+                              <span className={`font-medium ${tx.tipo_transacao === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
+                                {tx.tipo_transacao === 'INCOME' ? 'Receita' : 'Despesa'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 block text-xs mb-0.5">Origem</span>
+                              <span className="font-medium text-gray-900">{tx.source || 'Manual'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 block text-xs mb-0.5">Vencimento</span>
+                              <span className="font-medium text-gray-900">
+                                {tx.detail?.dueDate ? formatDate(tx.detail.dueDate) : '-'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 block text-xs mb-0.5">Pagamento</span>
+                              <span className="font-medium text-gray-900">
+                                {tx.detail?.paymentDate ? formatDate(tx.detail.paymentDate) : '-'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 block text-xs mb-0.5">Nº Documento</span>
+                              <span className="font-medium text-gray-900">{tx.detail?.documentNumber || '-'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 block text-xs mb-0.5">Ref. Bancária</span>
+                              <span className="font-medium text-gray-900">{tx.detail?.bankReference || '-'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 block text-xs mb-0.5">Valor Original</span>
+                              <span className="font-medium text-gray-900">
+                                {tx.detail?.amountOriginal ? formatCurrency(tx.detail.amountOriginal) : formatCurrency(tx.amount)}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 block text-xs mb-0.5">Valor Pago/Recebido</span>
+                              <span className="font-medium text-gray-900">
+                                {tx.detail?.amountPaid ? formatCurrency(tx.detail.amountPaid) :
+                                 tx.detail?.amountReceived ? formatCurrency(tx.detail.amountReceived) : '-'}
+                              </span>
+                            </div>
+                            {(tx.detail?.discount || tx.detail?.interest) && (
+                              <>
+                                <div>
+                                  <span className="text-gray-500 block text-xs mb-0.5">Desconto</span>
+                                  <span className="font-medium text-green-600">
+                                    {tx.detail?.discount ? formatCurrency(tx.detail.discount) : '-'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500 block text-xs mb-0.5">Juros/Multa</span>
+                                  <span className="font-medium text-red-600">
+                                    {tx.detail?.interest ? formatCurrency(tx.detail.interest) : '-'}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                            {tx.notes && (
+                              <div className="col-span-2 md:col-span-4">
+                                <span className="text-gray-500 block text-xs mb-0.5">Observações</span>
+                                <span className="text-gray-700">{tx.notes}</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
               </tbody>
             </table>
 
-            {/* Paginação */}
-            {pagination.totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                <p className="text-xs" style={{ color: '#64748b' }}>
-                  Mostrando página {pagination.page} de {pagination.totalPages} ({pagination.total} transações)
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => loadTransactions(pagination.page - 1)}
-                    disabled={pagination.page <= 1}
-                    className="px-3 py-1 rounded text-sm disabled:opacity-30"
-                    style={{ backgroundColor: '#1e293b', color: '#94a3b8' }}
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    onClick={() => loadTransactions(pagination.page + 1)}
-                    disabled={pagination.page >= pagination.totalPages}
-                    className="px-3 py-1 rounded text-sm disabled:opacity-30"
-                    style={{ backgroundColor: '#1e293b', color: '#94a3b8' }}
-                  >
-                    Próxima
-                  </button>
-                </div>
+            {/* Pagination */}
+            <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
+              <span className="text-sm text-gray-500">
+                Mostrando {transactions.length} de {total} transações
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="p-2 border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm text-gray-600">
+                  Página {page} de {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="p-2 border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-            )}
+            </div>
           </>
         )}
       </div>
-
-      {/* Modal de Conciliação */}
-      {showReconcileModal && currentTransaction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-          <div className="w-full max-w-md rounded-xl p-6" style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white">Conciliar Transação</h3>
-              <button onClick={() => setShowReconcileModal(false)}>
-                <X className="w-5 h-5" style={{ color: '#64748b' }} />
-              </button>
-            </div>
-
-            <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: '#111827' }}>
-              <p className="text-sm font-medium text-white">{currentTransaction.description}</p>
-              <p className="text-sm mt-1" style={{ color: currentTransaction.tipo_transacao === 'INCOME' ? '#22c55e' : '#ef4444' }}>
-                {formatCurrency(currentTransaction.amount)}
-              </p>
-              <p className="text-xs mt-1" style={{ color: '#64748b' }}>{formatDate(currentTransaction.date)}</p>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>Contraparte (opcional)</label>
-                <select
-                  value={reconcileForm.counterpartyId}
-                  onChange={e => setReconcileForm(f => ({ ...f, counterpartyId: e.target.value }))}
-                  className="w-full mt-1 px-3 py-2 rounded-lg text-sm"
-                  style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-                >
-                  <option value="">Selecione...</option>
-                  {counterparties.map(cp => (
-                    <option key={cp.id} value={cp.id}>{cp.name} {cp.document ? `(${cp.document})` : ''}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>Documento fiscal (opcional)</label>
-                <select
-                  value={reconcileForm.documentId}
-                  onChange={e => setReconcileForm(f => ({ ...f, documentId: e.target.value }))}
-                  className="w-full mt-1 px-3 py-2 rounded-lg text-sm"
-                  style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-                >
-                  <option value="">Selecione...</option>
-                  {documents.map(doc => (
-                    <option key={doc.id} value={doc.id}>
-                      {doc.type} #{doc.number} — {formatCurrency(doc.amount)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium" style={{ color: '#94a3b8' }}>Observações (opcional)</label>
-                <textarea
-                  value={reconcileForm.notes}
-                  onChange={e => setReconcileForm(f => ({ ...f, notes: e.target.value }))}
-                  rows={2}
-                  className="w-full mt-1 px-3 py-2 rounded-lg text-sm resize-none"
-                  style={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
-                  placeholder="Notas sobre esta conciliação..."
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-5">
-              <button
-                onClick={() => setShowReconcileModal(false)}
-                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium"
-                style={{ backgroundColor: '#374151', color: '#94a3b8' }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleReconcile}
-                disabled={!!reconciling}
-                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
-                style={{ backgroundColor: '#22c55e', color: '#fff' }}
-              >
-                {reconciling ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                Conciliar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

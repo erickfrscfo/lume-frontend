@@ -75,7 +75,7 @@ export const financialApi = {
 };
 
 // ============================================
-// TRANSACTIONS (Conciliação)
+// TRANSACTIONS (Conciliação - Expandido)
 // ============================================
 export const transactionsApi = {
   list: (params?: {
@@ -87,6 +87,9 @@ export const transactionsApi = {
     endDate?: string;
     search?: string;
     reconciliationStatus?: string;
+    status?: string;
+    counterpartyId?: string;
+    source?: string;
     sortBy?: string;
     sortOrder?: string;
   }) => {
@@ -116,7 +119,9 @@ export const transactionsApi = {
     date?: string;
     tipo_transacao?: 'INCOME' | 'EXPENSE';
     categoryId?: string;
+    counterpartyId?: string;
     notes?: string;
+    status?: 'PENDING' | 'COMPLETED' | 'OVERDUE' | 'PARTIAL';
   }) => api.patch(`/transactions/${id}`, data),
 
   createDetail: (transactionId: string, data: {
@@ -126,11 +131,46 @@ export const transactionsApi = {
     documentNumber?: string;
     bankReference?: string;
     notes?: string;
+    amountOriginal?: number;
+    amountPaid?: number;
+    discount?: number;
+    interest?: number;
   }) => api.post(`/transactions/${transactionId}/detail`, data),
+
+  updateDetail: (transactionId: string, detailId: string, data: {
+    counterpartyId?: string;
+    dueDate?: string;
+    paymentDate?: string;
+    receiptDate?: string;
+    documentNumber?: string;
+    bankReference?: string;
+    notes?: string;
+    amountOriginal?: number;
+    amountPaid?: number;
+    amountReceived?: number;
+    discount?: number;
+    interest?: number;
+  }) => api.patch(`/transactions/${transactionId}/detail/${detailId}`, data),
+
+  // Mark as paid (EXPENSE)
+  markPaid: (id: string, data: {
+    paymentDate?: string;
+    amountPaid?: number;
+    bankReference?: string;
+    notes?: string;
+  }) => api.post(`/transactions/${id}/mark-paid`, data),
+
+  // Mark as received (INCOME)
+  markReceived: (id: string, data: {
+    receiptDate?: string;
+    amountReceived?: number;
+    bankReference?: string;
+    notes?: string;
+  }) => api.post(`/transactions/${id}/mark-received`, data),
 };
 
 // ============================================
-// COUNTERPARTIES (Contrapartes)
+// COUNTERPARTIES (Contrapartes - Expandido)
 // ============================================
 export const counterpartiesApi = {
   list: (params?: {
@@ -152,6 +192,15 @@ export const counterpartiesApi = {
   },
 
   getById: (id: string) => api.get(`/counterparties/${id}`),
+
+  // Métricas e histórico de uma contraparte
+  getMetrics: (id: string) => api.get(`/counterparties/${id}/metrics`),
+  getHistory: (id: string, params?: { page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
+    return api.get(`/counterparties/${id}/history?${query.toString()}`);
+  },
 
   create: (data: {
     name: string;
@@ -226,13 +275,14 @@ export const documentsApi = {
 };
 
 // ============================================
-// RECONCILIATIONS (Conciliações)
+// RECONCILIATIONS (Conciliações - Expandido)
 // ============================================
 export const reconciliationsApi = {
   list: (params?: {
     page?: number;
     limit?: number;
     method?: string;
+    status?: string;
     startDate?: string;
     endDate?: string;
   }) => {
@@ -254,6 +304,10 @@ export const reconciliationsApi = {
     documentId?: string;
     counterpartyId?: string;
     notes?: string;
+    proofDescription?: string;
+    bankTransactionRef?: string;
+    bankTransactionDate?: string;
+    bankTransactionAmount?: number;
   }) => api.post('/reconciliations', data),
 
   batchReconcile: (data: {
@@ -265,21 +319,24 @@ export const reconciliationsApi = {
     notes?: string;
   }) => api.post('/reconciliations/batch', data),
 
+  // Confirmar/rejeitar sugestão de conciliação
+  confirm: (id: string) => api.patch(`/reconciliations/${id}/confirm`),
+  reject: (id: string) => api.patch(`/reconciliations/${id}/reject`),
+
   undo: (id: string) => api.delete(`/reconciliations/${id}`),
 };
 
 // ============================================
-// INSIGHTS (Smart Alerts)
+// INSIGHTS (Smart Alerts / AI Insights)
 // ============================================
 export const insightsApi = {
   list: (params?: {
     page?: number;
     limit?: number;
-    type?: string;
+    insightType?: string;
     severity?: string;
     isRead?: boolean;
     isDismissed?: boolean;
-    category?: string;
   }) => {
     const query = new URLSearchParams();
     if (params) {
@@ -302,12 +359,12 @@ export const insightsApi = {
 
   readAll: () => api.post('/insights/read-all'),
 
-  dismissAll: (params?: { type?: string; severity?: string }) =>
+  dismissAll: (params?: { insightType?: string; severity?: string }) =>
     api.post('/insights/dismiss-all', params || {}),
 };
 
 // ============================================
-// UPLOAD
+// UPLOAD (CSV expandido com 9 colunas)
 // ============================================
 export const uploadApi = {
   csv: (file: File) => {
@@ -315,10 +372,24 @@ export const uploadApi = {
     formData.append('file', file);
     return api.post('/upload/csv', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000, // 5 min para classificação IA de muitas transações
+      timeout: 300000,
     });
   },
   history: () => api.get('/upload/history'),
+  // Download template CSV com 9 colunas
+  downloadTemplate: () => {
+    const headers = 'data,descricao,valor,tipo,categoria,contraparte,documento_numero,vencimento,referencia_bancaria';
+    const example1 = '2025-03-01,Pagamento Fornecedor X,1500.00,EXPENSE,5.0,Fornecedor X,NF-001,2025-03-15,TED-123456';
+    const example2 = '2025-03-05,Recebimento Cliente Y,5000.00,INCOME,1.2,Cliente Y,NF-002,2025-03-05,PIX-789012';
+    const csv = `${headers}\n${example1}\n${example2}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'template_transacoes_lume.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 // ============================================
@@ -371,6 +442,13 @@ export const alertsApi = {
 export const forecastApi = {
   get: (months: number = 6, scenario: string = 'realistic') =>
     api.get(`/forecast?months=${months}&scenario=${scenario}`),
+};
+
+// ============================================
+// CATEGORIES
+// ============================================
+export const categoriesApi = {
+  list: () => api.get('/categories'),
 };
 
 // ============================================
