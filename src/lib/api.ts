@@ -70,9 +70,240 @@ export const financialApi = {
     notes?: string;
   }) => api.post('/financial/transactions', data),
   deleteTransaction: (id: string) => api.delete(`/financial/transactions/${id}`),
-// NOVO: Buscar breakdown de custos
- costBreakdown: (months: number = 6) =>
- api.get(`/api/financial/cost-breakdown?months=${months}`),
+  costBreakdown: (months: number = 6) =>
+    api.get(`/financial/cost-breakdown?months=${months}`),
+};
+
+// ============================================
+// TRANSACTIONS (Conciliação)
+// ============================================
+export const transactionsApi = {
+  list: (params?: {
+    page?: number;
+    limit?: number;
+    tipo_transacao?: string;
+    categoryId?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+    reconciliationStatus?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          query.append(key, String(value));
+        }
+      });
+    }
+    return api.get(`/transactions?${query.toString()}`);
+  },
+
+  summary: (params?: { startDate?: string; endDate?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.append('startDate', params.startDate);
+    if (params?.endDate) query.append('endDate', params.endDate);
+    return api.get(`/transactions/summary?${query.toString()}`);
+  },
+
+  getById: (id: string) => api.get(`/transactions/${id}`),
+
+  update: (id: string, data: {
+    description?: string;
+    amount?: number;
+    date?: string;
+    tipo_transacao?: 'INCOME' | 'EXPENSE';
+    categoryId?: string;
+    notes?: string;
+  }) => api.patch(`/transactions/${id}`, data),
+
+  createDetail: (transactionId: string, data: {
+    counterpartyId?: string;
+    dueDate?: string;
+    paymentDate?: string;
+    documentNumber?: string;
+    bankReference?: string;
+    notes?: string;
+  }) => api.post(`/transactions/${transactionId}/detail`, data),
+};
+
+// ============================================
+// COUNTERPARTIES (Contrapartes)
+// ============================================
+export const counterpartiesApi = {
+  list: (params?: {
+    page?: number;
+    limit?: number;
+    type?: string;
+    search?: string;
+    isActive?: boolean;
+  }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          query.append(key, String(value));
+        }
+      });
+    }
+    return api.get(`/counterparties?${query.toString()}`);
+  },
+
+  getById: (id: string) => api.get(`/counterparties/${id}`),
+
+  create: (data: {
+    name: string;
+    document?: string;
+    type?: 'SUPPLIER' | 'CLIENT' | 'BOTH';
+    email?: string;
+    phone?: string;
+    notes?: string;
+  }) => api.post('/counterparties', data),
+
+  update: (id: string, data: {
+    name?: string;
+    document?: string;
+    type?: 'SUPPLIER' | 'CLIENT' | 'BOTH';
+    email?: string;
+    phone?: string;
+    notes?: string;
+    isActive?: boolean;
+  }) => api.patch(`/counterparties/${id}`, data),
+
+  delete: (id: string) => api.delete(`/counterparties/${id}`),
+};
+
+// ============================================
+// DOCUMENTS (Documentos Fiscais)
+// ============================================
+export const documentsApi = {
+  list: (params?: {
+    page?: number;
+    limit?: number;
+    type?: string;
+    status?: string;
+    counterpartyId?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          query.append(key, String(value));
+        }
+      });
+    }
+    return api.get(`/documents?${query.toString()}`);
+  },
+
+  getById: (id: string) => api.get(`/documents/${id}`),
+
+  create: (data: {
+    type: 'INVOICE' | 'RECEIPT' | 'BANK_STATEMENT' | 'CONTRACT' | 'OTHER';
+    number: string;
+    issueDate: string;
+    amount: number;
+    description?: string;
+    counterpartyId?: string;
+    fileUrl?: string;
+  }) => api.post('/documents', data),
+
+  update: (id: string, data: {
+    number?: string;
+    issueDate?: string;
+    amount?: number;
+    description?: string;
+    counterpartyId?: string;
+    fileUrl?: string;
+    status?: 'ACTIVE' | 'CANCELLED' | 'ARCHIVED';
+  }) => api.patch(`/documents/${id}`, data),
+
+  delete: (id: string) => api.delete(`/documents/${id}`),
+};
+
+// ============================================
+// RECONCILIATIONS (Conciliações)
+// ============================================
+export const reconciliationsApi = {
+  list: (params?: {
+    page?: number;
+    limit?: number;
+    method?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          query.append(key, String(value));
+        }
+      });
+    }
+    return api.get(`/reconciliations?${query.toString()}`);
+  },
+
+  dashboard: () => api.get('/reconciliations/dashboard'),
+
+  reconcile: (data: {
+    transactionId: string;
+    documentId?: string;
+    counterpartyId?: string;
+    notes?: string;
+  }) => api.post('/reconciliations', data),
+
+  batchReconcile: (data: {
+    items: Array<{
+      transactionId: string;
+      documentId?: string;
+      counterpartyId?: string;
+    }>;
+    notes?: string;
+  }) => api.post('/reconciliations/batch', data),
+
+  undo: (id: string) => api.delete(`/reconciliations/${id}`),
+};
+
+// ============================================
+// INSIGHTS (Smart Alerts)
+// ============================================
+export const insightsApi = {
+  list: (params?: {
+    page?: number;
+    limit?: number;
+    type?: string;
+    severity?: string;
+    isRead?: boolean;
+    isDismissed?: boolean;
+    category?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          query.append(key, String(value));
+        }
+      });
+    }
+    return api.get(`/insights?${query.toString()}`);
+  },
+
+  summary: () => api.get('/insights/summary'),
+
+  getById: (id: string) => api.get(`/insights/${id}`),
+
+  markRead: (id: string) => api.patch(`/insights/${id}/read`),
+
+  dismiss: (id: string) => api.patch(`/insights/${id}/dismiss`),
+
+  readAll: () => api.post('/insights/read-all'),
+
+  dismissAll: (params?: { type?: string; severity?: string }) =>
+    api.post('/insights/dismiss-all', params || {}),
 };
 
 // ============================================
@@ -99,15 +330,12 @@ export const aiApi = {
   explain: (metric: string, value: string, context?: string) =>
     api.post('/ai/explain', { metric, value, context }),
   chatHistory: () => api.get('/ai/chat/history'),
-// NOVO: Buscar classificações pendentes
- getPendingCostClassifications: ( ) =>
- api.get('/api/ai/pending-cost-classifications'),
-// NOVO: Classificar tipo de custo
- classifyCostType: (transactionIds: string[]) =>
- api.post('/api/ai/classify-cost-type', { transactionIds }),
-// NOVO: Atualizar tipo de custo manualmente
- updateCostType: (transactionId: string, costType: 'FIXO' | 'VARIAVEL') =>
- api.put(`/api/ai/update-cost-type/${transactionId}`, { costType }),
+  getPendingCostClassifications: () =>
+    api.get('/ai/pending-cost-classifications'),
+  classifyCostType: (transactionIds: string[]) =>
+    api.post('/ai/classify-cost-type', { transactionIds }),
+  updateCostType: (transactionId: string, costType: 'FIXO' | 'VARIAVEL') =>
+    api.put(`/ai/update-cost-type/${transactionId}`, { costType }),
 };
 
 // ============================================
@@ -128,7 +356,7 @@ export const scenariosApi = {
 };
 
 // ============================================
-// ALERTS
+// ALERTS (existente)
 // ============================================
 export const alertsApi = {
   list: () => api.get('/alerts'),

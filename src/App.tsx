@@ -8,6 +8,9 @@ import ReuniaoExecutiva from '@/pages/ReuniaoExecutiva';
 import InsercaoDados from '@/pages/InsercaoDados';
 import Dashboards from '@/pages/Dashboards';
 import Integracoes from '@/pages/Integracoes';
+import Conciliacao from '@/pages/Conciliacao';
+import Contrapartes from '@/pages/Contrapartes';
+import Documentos from '@/pages/Documentos';
 
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -30,6 +33,9 @@ export default function App() {
         <Route path="/dados" element={<InsercaoDados />} />
         <Route path="/dashboards" element={<Dashboards />} />
         <Route path="/integracoes" element={<Integracoes />} />
+        <Route path="/conciliacao" element={<Conciliacao />} />
+        <Route path="/contrapartes" element={<Contrapartes />} />
+        <Route path="/documentos" element={<Documentos />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

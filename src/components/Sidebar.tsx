@@ -10,6 +10,9 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
+  GitCompareArrows,
+  Users,
+  FileText,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -18,6 +21,9 @@ const navItems = [
   { path: '/reuniao', icon: MessageSquare, label: 'Reunião Executiva' },
   { path: '/dados', icon: Upload, label: 'Inserção de Dados' },
   { path: '/dashboards', icon: BarChart3, label: 'Dashboards' },
+  { path: '/conciliacao', icon: GitCompareArrows, label: 'Conciliação' },
+  { path: '/contrapartes', icon: Users, label: 'Contrapartes' },
+  { path: '/documentos', icon: FileText, label: 'Documentos' },
   { path: '/integracoes', icon: Link2, label: 'Integrações' },
 ];
 
