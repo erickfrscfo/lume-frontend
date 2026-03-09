@@ -106,7 +106,7 @@ export default function InsercaoDados() {
 
   const loadCategories = async () => {
     try {
-      const res = await api.get('/api/categories');
+      const res = await api.get('/categories');
       if (res.data?.success) {
         setCategories(res.data.data || []);
       }
@@ -117,7 +117,7 @@ export default function InsercaoDados() {
 
   const loadCounterparties = async () => {
     try {
-      const res = await api.get('/api/counterparties');
+      const res = await api.get('/counterparties');
       if (res.data?.success) {
         setCounterparties(res.data.data?.counterparties || res.data.data || []);
       }
@@ -128,7 +128,7 @@ export default function InsercaoDados() {
 
   const loadUploadHistory = async () => {
     try {
-      const res = await api.get('/api/upload/history');
+      const res = await api.get('/upload/history');
       if (res.data?.success) {
         setUploadHistory(res.data.data || []);
       }
@@ -166,7 +166,7 @@ export default function InsercaoDados() {
       const formData = new FormData();
       formData.append('file', csvFile);
 
-      const res = await api.post('/api/upload/csv', formData, {
+      const res = await api.post('/upload/csv', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
@@ -212,7 +212,7 @@ export default function InsercaoDados() {
       if (transaction.bankReference) payload.bankReference = transaction.bankReference;
       if (transaction.notes) payload.notes = transaction.notes;
 
-      const res = await api.post('/api/transactions', payload);
+      const res = await api.post('/transactions', payload);
 
       if (res.data?.success) {
         setSaveResult({ success: true, message: 'Transação salva com sucesso!' });
@@ -279,7 +279,7 @@ export default function InsercaoDados() {
       formData.append('file', ocrFile);
       formData.append('tipo_transacao', ocrTipoTransacao);
 
-      const res = await api.post('/api/ocr/upload', formData, {
+      const res = await api.post('/ocr/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
@@ -314,7 +314,7 @@ export default function InsercaoDados() {
     setOcrConfirmResult(null);
 
     try {
-      const res = await api.post(`/api/ocr/confirm/${ocrResult.documentId}`, ocrEditData);
+      const res = await api.post(`/ocr/confirm/${ocrResult.documentId}`, ocrEditData);
 
       if (res.data?.success) {
         setOcrConfirmResult({ success: true, message: 'Transação criada com sucesso a partir do documento!' });
