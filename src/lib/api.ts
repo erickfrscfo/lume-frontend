@@ -457,5 +457,38 @@ export const categoriesApi = {
 export const healthApi = {
   check: () => api.get('/health'),
 };
-
+// ============================================
+// OCR (Importação de Documentos com IA)
+// ============================================
+export const ocrApi = {
+  extract: (file: File, tipoTransacao: 'INCOME' | 'EXPENSE') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('tipo_transacao', tipoTransacao);
+    return api.post('/ocr/extract', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  },
+  confirm: (data: {
+    description: string;
+    amount: number;
+    date: string;
+    tipo_transacao: 'INCOME' | 'EXPENSE';
+    categoryId?: string;
+    counterpartyId?: string;
+    counterpartyName?: string;
+    documentNumber?: string;
+    documentType?: 'INVOICE' | 'RECEIPT' | 'BANK_STATEMENT' | 'CONTRACT' | 'OTHER';
+    dueDate?: string;
+    notes?: string;
+    extractionId?: string;
+  }) => api.post('/ocr/confirm', data),
+  history: (params?: { page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
+    return api.get(`/ocr/history?${query.toString()}`);
+  },
+};
 export default api;
