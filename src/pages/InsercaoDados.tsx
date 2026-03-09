@@ -279,7 +279,7 @@ export default function InsercaoDados() {
       formData.append('file', ocrFile);
       formData.append('tipo_transacao', ocrTipoTransacao);
 
-      const res = await api.post('/ocr/upload', formData, {
+      const res = await api.post('/ocr/extract', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
