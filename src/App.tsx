@@ -11,7 +11,6 @@ import Integracoes from '@/pages/Integracoes';
 import Conciliacao from '@/pages/Conciliacao';
 import Contrapartes from '@/pages/Contrapartes';
 import Documentos from '@/pages/Documentos';
-import Conciliacao from './pages/Conciliacao';
 import Insights from './pages/Insights';
 
 export default function App() {

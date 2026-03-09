@@ -12,7 +12,6 @@ import {
   ChevronRight,
   GitCompareArrows,
   Users,
-  FileText,
 } from 'lucide-react';
 import { useState } from 'react';
 import { CheckSquare, Building2, FileText, Lightbulb } from 'lucide-react';

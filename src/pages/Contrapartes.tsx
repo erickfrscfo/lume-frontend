@@ -122,7 +122,7 @@ export default function Contrapartes() {
   const handleToggleActive = async (cp: Counterparty) => {
     try {
       if (cp.isActive) {
-        await counterpartiesApi.deactivate(cp.id);
+        await counterpartiesApi.delete(cp.id);
         setActionResult({ success: true, message: `${cp.name} desativado` });
       } else {
         await counterpartiesApi.update(cp.id, { isActive: true } as any);
