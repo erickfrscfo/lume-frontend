@@ -146,6 +146,126 @@ export const forecastApi = {
 };
 
 // ============================================
+// TRANSACTIONS (Conciliação)
+// ============================================
+export const transactionsApi = {
+  list: (params?: {
+    page?: number;
+    limit?: number;
+    tipo_transacao?: string;
+    status?: string;
+    reconciliationStatus?: string;
+    counterpartyId?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const qs = searchParams.toString();
+    return api.get(`/transactions${qs ? `?${qs}` : ''}`);
+  },
+  markPaid: (id: string, data: { paymentDate?: string; amountPaid?: number }) =>
+    api.patch(`/transactions/${id}/mark-paid`, data),
+  markReceived: (id: string, data: { receiptDate?: string; amountReceived?: number }) =>
+    api.patch(`/transactions/${id}/mark-received`, data),
+};
+
+// ============================================
+// COUNTERPARTIES (Contrapartes)
+// ============================================
+export const counterpartiesApi = {
+  list: (params?: { type?: string; isActive?: boolean; search?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const qs = searchParams.toString();
+    return api.get(`/counterparties${qs ? `?${qs}` : ''}`);
+  },
+  create: (data: {
+    name: string;
+    document?: string;
+    type?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    notes?: string;
+  }) => api.post('/counterparties', data),
+  update: (id: string, data: Record<string, any>) => api.put(`/counterparties/${id}`, data),
+  delete: (id: string) => api.delete(`/counterparties/${id}`),
+};
+
+// ============================================
+// RECONCILIATIONS (Conciliação)
+// ============================================
+export const reconciliationsApi = {
+  dashboard: () => api.get('/reconciliations/dashboard'),
+  batchReconcile: (data: { items: Array<{ transactionId: string }>; notes?: string }) =>
+    api.post('/reconciliations/batch', data),
+};
+
+// ============================================
+// DOCUMENTS (Documentos Fiscais)
+// ============================================
+export const documentsApi = {
+  list: (params?: { type?: string; status?: string; search?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const qs = searchParams.toString();
+    return api.get(`/documents${qs ? `?${qs}` : ''}`);
+  },
+  create: (data: {
+    number: string;
+    type: string;
+    description?: string;
+    amount?: number;
+    issueDate?: string;
+    dueDate?: string;
+    counterpartyId?: string;
+    notes?: string;
+  }) => api.post('/documents', data),
+  update: (id: string, data: Record<string, any>) => api.put(`/documents/${id}`, data),
+  delete: (id: string) => api.delete(`/documents/${id}`),
+};
+
+// ============================================
+// INSIGHTS (Insights IA)
+// ============================================
+export const insightsApi = {
+  list: (params?: { severity?: string; isDismissed?: boolean }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const qs = searchParams.toString();
+    return api.get(`/insights${qs ? `?${qs}` : ''}`);
+  },
+  markRead: (id: string) => api.patch(`/insights/${id}/read`),
+  dismiss: (id: string) => api.patch(`/insights/${id}/dismiss`),
+};
+
+// ============================================
 // HEALTH
 // ============================================
 export const healthApi = {
