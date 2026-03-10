@@ -184,7 +184,14 @@ export default function Login() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">Setor</label>
-                  <input type="text" value={sector} onChange={(e) => setSector(e.target.value)} placeholder="Tecnologia" required className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+                  <select value={sector} onChange={(e) => setSector(e.target.value)} required className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                    <option value="">Selecione...</option>
+                    <option value="VAREJO">Varejo / Comércio</option>
+                    <option value="SERVICOS">Serviços / Consultoria</option>
+                    <option value="INDUSTRIA">Indústria / Manufatura</option>
+                    <option value="SAAS">SaaS / Tecnologia</option>
+                    <option value="MISTO">Misto / Outros</option>
+                  </select>
                 </div>
               </div>
               <button

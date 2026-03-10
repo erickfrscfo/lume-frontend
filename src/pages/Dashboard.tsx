@@ -395,6 +395,7 @@ export default function Dashboard() {
   const [dashData, setDashData] = useState<DashboardData | null>(null);
   const [cashflowRaw, setCashflowRaw] = useState<CashflowRaw[]>([]);
   const [dreRaw, setDreRaw] = useState<DREData>({});
+  const [dreProfile, setDreProfile] = useState<{ sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[] } | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scenariosOpen, setScenariosOpen] = useState(true);
@@ -458,7 +459,11 @@ export default function Dashboard() {
       if (metricsRes.status === 'fulfilled') setDashData(metricsRes.value.data.data || metricsRes.value.data);
       if (cashflowRes.status === 'fulfilled') setCashflowRaw(cashflowRes.value.data.data || cashflowRes.value.data || []);
       if (scenariosRes.status === 'fulfilled') setScenarios(scenariosRes.value.data.data || scenariosRes.value.data || []);
-      if (dreRes.status === 'fulfilled') setDreRaw(dreRes.value.data.data || dreRes.value.data || {});
+      if (dreRes.status === 'fulfilled') {
+        const dreResponse = dreRes.value.data;
+        setDreRaw(dreResponse.data || dreResponse || {});
+        if (dreResponse.profile) setDreProfile(dreResponse.profile);
+      }
     } catch (err: any) {
       setError('Erro ao carregar dados. Verifique a conexão com o servidor.');
     } finally {
@@ -581,9 +586,15 @@ Pedido do usuário: ${userMsg}`;
       .filter(([k]) => k.startsWith('1.') || k.startsWith('2.'))
       .reduce((sum, [, v]) => sum + v, 0);
 
-    // CMV / Custos Diretos = código 3.x
+    // Custos Diretos (CMV/CSP/CPV conforme setor) — usa perfil dinâmico
+    const directCostCodes = dreProfile?.directCostCodes || ['3.'];
+    const excludeCodes = dreProfile?.excludeFromDirectCost || [];
     const cmv = Object.entries(monthData)
-      .filter(([k]) => k.startsWith('3.'))
+      .filter(([k]) => {
+        const isDirectCost = directCostCodes.some(prefix => k.startsWith(prefix));
+        const isExcluded = excludeCodes.some(prefix => k.startsWith(prefix));
+        return isDirectCost && !isExcluded;
+      })
       .reduce((sum, [, v]) => sum + v, 0);
 
     // Despesas com Pessoal = código 4.x (NÃO é imposto!)
@@ -618,7 +629,7 @@ Pedido do usuário: ${userMsg}`;
       margemBruta: receita > 0 ? (lucroBruto / receita) * 100 : 0,
       margemLiquida: receita > 0 ? (lucroLiquido / receita) * 100 : 0,
     };
-  }, [dreRaw]);
+  }, [dreRaw, dreProfile]);
 
 
   // Build 12-month sliding window: 5 past + current + 6 forecast
@@ -709,7 +720,7 @@ Pedido do usuário: ${userMsg}`;
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MetricCard title="Saldo de Caixa" value={cashBalance} icon={DollarSign} change={cashBalanceChange} showChange={true} subtitle="Saldo acumulado" colorTheme="blue" />
-          <MetricCard title="Margem Bruta" value={margemBruta} icon={TrendingUp} showChange={false} format="percent" subtitle="(Lucro Bruto / Receita) × 100" colorTheme={margemBruta >= 30 ? 'green' : 'red'} />
+          <MetricCard title="Margem Bruta" value={margemBruta} icon={TrendingUp} showChange={false} format="percent" subtitle={dreProfile ? `${dreProfile.directCostLabel} → ${dreProfile.grossProfitLabel}` : '(Lucro Bruto / Receita) × 100'} colorTheme={margemBruta >= 30 ? 'green' : 'red'} />
           <MetricCard title="Margem Líquida" value={margemLiquida} icon={Percent} showChange={false} format="percent" subtitle="(Lucro Líquido / Receita) × 100" colorTheme={margemLiquida >= 10 ? 'green' : margemLiquida >= 0 ? 'blue' : 'red'} />
         </div>
 
@@ -822,9 +833,9 @@ Pedido do usuário: ${userMsg}`;
                         <div className="space-y-1.5">
                           {(['optimistic', 'realistic', 'pessimistic'] as ForecastScenario[]).map((sc) => {
                             const labels: Record<ForecastScenario, { name: string; desc: string; color: string; activeColor: string; icon: string }> = {
-                              optimistic: { name: 'Previsão Otimista', desc: 'Receita +15%, CMV -2pp', color: 'text-emerald-600', activeColor: 'border-emerald-200 bg-emerald-50/50', icon: '📈' },
+                              optimistic: { name: 'Previsão Otimista', desc: `Receita +15%, ${dreProfile?.directCostLabel || 'CMV'} -2pp`, color: 'text-emerald-600', activeColor: 'border-emerald-200 bg-emerald-50/50', icon: '📈' },
                               realistic: { name: 'Previsão Realista', desc: 'Baseada no histórico', color: 'text-blue-600', activeColor: 'border-blue-200 bg-blue-50/50', icon: '📊' },
-                              pessimistic: { name: 'Previsão Pessimista', desc: 'Receita -15%, CMV +2pp', color: 'text-amber-600', activeColor: 'border-amber-200 bg-amber-50/50', icon: '📉' },
+                              pessimistic: { name: 'Previsão Pessimista', desc: `Receita -15%, ${dreProfile?.directCostLabel || 'CMV'} +2pp`, color: 'text-amber-600', activeColor: 'border-amber-200 bg-amber-50/50', icon: '📉' },
                             };
                             const info = labels[sc];
                             const isActive = forecastScenario === sc;
@@ -865,7 +876,7 @@ Pedido do usuário: ${userMsg}`;
                             <div className="mt-2 px-2 py-2 bg-slate-50 rounded-lg">
                               <p className="text-[10px] font-medium text-slate-400 uppercase mb-1.5">Drivers do modelo</p>
                               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
-                                <span className="text-slate-400">CMV médio</span>
+                                <span className="text-slate-400">{dreProfile?.directCostLabel || 'CMV'} médio</span>
                                 <span className={`font-medium text-right ${adj.cmvDelta < 0 ? 'text-emerald-600' : adj.cmvDelta > 0 ? 'text-amber-600' : 'text-slate-600'}`}>{displayCmv.toFixed(1)}%{adj.cmvDelta !== 0 ? ` (${adj.cmvDelta > 0 ? '+' : ''}${adj.cmvDelta}pp)` : ''}</span>
                                 <span className="text-slate-400">Impostos</span>
                                 <span className="text-slate-600 font-medium text-right">{d.avgTaxPercent.toFixed(1)}%</span>

@@ -166,7 +166,7 @@ function formatMonthLabel(monthKey: string): string {
  * Transforma os dados brutos do backend em DRERow[] consolidados.
  * Backend retorna: { "2025-01": { "1.0": 5000, "3.1": 2000, "5.2": 800 }, ... }
  */
-function transformDREData(rawData: any): { rows: DRERow[]; monthKeys: string[] } {
+function transformDREData(rawData: any, profile?: { directCostCodes: string[]; excludeFromDirectCost?: string[] } | null): { rows: DRERow[]; monthKeys: string[] } {
   if (!rawData || typeof rawData !== 'object' || Array.isArray(rawData)) {
     return { rows: [], monthKeys: [] };
   }
@@ -179,13 +179,28 @@ function transformDREData(rawData: any): { rows: DRERow[]; monthKeys: string[] }
     let cogs = 0;
     let opex = 0;
 
+    // Usar perfil dinâmico para determinar custos diretos
+    const directCostCodes = profile?.directCostCodes || ['3.'];
+    const excludeCodes = profile?.excludeFromDirectCost || [];
+
     Object.entries(cats).forEach(([code, amount]) => {
       const val = Number(amount) || 0;
       const prefix = code.split('.')[0];
-      switch (prefix) {
-        case '1': case '2': revenue += val; break;
-        case '3': cogs += val; break;
-        case '4': case '5': case '6': case '7': case '8': opex += val; break;
+
+      // Receita
+      if (prefix === '1' || prefix === '2') {
+        revenue += val;
+        return;
+      }
+
+      // Verificar se é custo direto conforme perfil
+      const isDirectCost = directCostCodes.some(p => code.startsWith(p));
+      const isExcluded = excludeCodes.some(p => code.startsWith(p));
+
+      if (isDirectCost && !isExcluded) {
+        cogs += val;
+      } else if (['3', '4', '5', '6', '7', '8'].includes(prefix)) {
+        opex += val;
       }
     });
 
@@ -288,10 +303,12 @@ function DRETable({
   dreData,
   rawDreData,
   monthKeys,
+  dreProfile,
 }: {
   dreData: DRERow[];
   rawDreData: any;
   monthKeys: string[];
+  dreProfile?: { sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[] } | null;
 }) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [expandedSubgroups, setExpandedSubgroups] = useState<Set<string>>(new Set());
@@ -327,9 +344,15 @@ function DRETable({
     [rawDreData, monthKeys]
   );
 
+  // Extrair prefixos únicos dos códigos de custo direto do perfil
+  const cogsPrefixes = useMemo(() => {
+    if (!dreProfile?.directCostCodes) return ['3'];
+    return [...new Set(dreProfile.directCostCodes.map(c => c.split('.')[0]))];
+  }, [dreProfile]);
+
   const cogsDetails = useMemo(
-    () => extractCategoryDetails(rawDreData, monthKeys, ['3']),
-    [rawDreData, monthKeys]
+    () => extractCategoryDetails(rawDreData, monthKeys, cogsPrefixes),
+    [rawDreData, monthKeys, cogsPrefixes]
   );
 
   const opexSubgroups = useMemo(
@@ -422,7 +445,7 @@ function DRETable({
           >
             <td className="py-3 px-6 text-slate-700">
               {renderExpandIcon('cogs')}
-              (-) Custos de Mercadoria Vendida (CMV)
+              (-) {dreProfile?.directCostLabel || 'Custos de Mercadoria Vendida (CMV)'}
             </td>
             {dreData.map((d, i) => (
               <td key={i} className="py-3 px-4 text-right text-red-500">{formatCurrency(-d.cogs)}</td>
@@ -512,6 +535,7 @@ export default function Dashboards() {
   const [dreData, setDreData] = useState<DRERow[]>([]);
   const [rawDreData, setRawDreData] = useState<any>(null);
   const [monthKeys, setMonthKeys] = useState<string[]>([]);
+  const [dreProfile, setDreProfile] = useState<{ sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[] } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeView, setActiveView] = useState<'overview' | 'dre' | 'transactions'>('overview');
   const [txPage, setTxPage] = useState(1);
@@ -543,9 +567,12 @@ export default function Dashboards() {
         financialApi.dre(12),
       ]);
       if (dreRes.status === 'fulfilled') {
-        const raw = dreRes.value.data.data || dreRes.value.data || {};
+        const dreResponse = dreRes.value.data;
+        const raw = dreResponse.data || dreResponse || {};
         setRawDreData(raw);
-        const { rows, monthKeys: mks } = transformDREData(raw);
+        const profile = dreResponse.profile || null;
+        setDreProfile(profile);
+        const { rows, monthKeys: mks } = transformDREData(raw, profile);
         setDreData(rows);
         setMonthKeys(mks);
       }
@@ -937,7 +964,7 @@ export default function Dashboards() {
               />
             )}
           </div>
-          <DRETable dreData={dreData} rawDreData={rawDreData} monthKeys={monthKeys} />
+          <DRETable dreData={dreData} rawDreData={rawDreData} monthKeys={monthKeys} dreProfile={dreProfile} />
         </div>
       )}
       {/* ========== CONCILIAÇÃO ========== */}
