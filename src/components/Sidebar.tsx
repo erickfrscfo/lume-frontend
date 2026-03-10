@@ -7,12 +7,10 @@ import {
   BarChart3,
   Link2,
   LogOut,
+  Sparkles,
+  Bell,
   ChevronLeft,
   ChevronRight,
-  GitCompareArrows,
-  Users,
-  FileText,
-  Lightbulb,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -21,11 +19,8 @@ const navItems = [
   { path: '/reuniao', icon: MessageSquare, label: 'Reunião Executiva' },
   { path: '/dados', icon: Upload, label: 'Inserção de Dados' },
   { path: '/dashboards', icon: BarChart3, label: 'Dashboards' },
-  { path: '/conciliacao', icon: GitCompareArrows, label: 'Conciliação' },
-  { path: '/contrapartes', icon: Users, label: 'Contrapartes' },
-  { path: '/documentos', icon: FileText, label: 'Documentos' },
+  { path: '/alertas', icon: Bell, label: 'Alertas IA' },
   { path: '/integracoes', icon: Link2, label: 'Integrações' },
-  { path: '/insights', icon: Lightbulb, label: 'Alertas IA' },
 ];
 
 export default function Sidebar() {

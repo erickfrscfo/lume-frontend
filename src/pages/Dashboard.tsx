@@ -566,31 +566,53 @@ Pedido do usuário: ${userMsg}`;
   // growth removido — indicador Fluxo de Caixa Líquido retirado da tela
   const transactionCount = dashData?.transactionCount || 0;
 
-  // Calcular margens do mês atual a partir da DRE
+  // Calcular margens do último mês com dados a partir da DRE
   const { margemBruta, margemLiquida } = useMemo(() => {
-    const now = new Date();
-    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const monthData = dreRaw[currentMonthKey];
+    // Encontrar o último mês com dados (não necessariamente o mês atual)
+    const monthKeys = Object.keys(dreRaw).sort();
+    if (monthKeys.length === 0) return { margemBruta: 0, margemLiquida: 0 };
+
+    const lastMonthKey = monthKeys[monthKeys.length - 1];
+    const monthData = dreRaw[lastMonthKey];
     if (!monthData) return { margemBruta: 0, margemLiquida: 0 };
 
+    // Receita = códigos 1.x (operacional) + 2.x (não operacional)
     const receita = Object.entries(monthData)
-      .filter(([k]) => k.startsWith('1.'))
+      .filter(([k]) => k.startsWith('1.') || k.startsWith('2.'))
       .reduce((sum, [, v]) => sum + v, 0);
+
+    // CMV / Custos Diretos = código 3.x
     const cmv = Object.entries(monthData)
       .filter(([k]) => k.startsWith('3.'))
       .reduce((sum, [, v]) => sum + v, 0);
-    const impostos = Object.entries(monthData)
+
+    // Despesas com Pessoal = código 4.x (NÃO é imposto!)
+    const despPessoal = Object.entries(monthData)
       .filter(([k]) => k.startsWith('4.'))
       .reduce((sum, [, v]) => sum + v, 0);
+
+    // Despesas Operacionais = código 5.x
     const despOp = Object.entries(monthData)
       .filter(([k]) => k.startsWith('5.'))
       .reduce((sum, [, v]) => sum + v, 0);
+
+    // Despesas Comerciais = código 6.x
     const despCom = Object.entries(monthData)
       .filter(([k]) => k.startsWith('6.'))
       .reduce((sum, [, v]) => sum + v, 0);
 
+    // Despesas Financeiras = código 7.x
+    const despFin = Object.entries(monthData)
+      .filter(([k]) => k.startsWith('7.'))
+      .reduce((sum, [, v]) => sum + v, 0);
+
+    // Impostos e Tributos = código 8.x (CORRETO!)
+    const impostos = Object.entries(monthData)
+      .filter(([k]) => k.startsWith('8.'))
+      .reduce((sum, [, v]) => sum + v, 0);
+
     const lucroBruto = receita - cmv;
-    const lucroLiquido = receita - cmv - impostos - despOp - despCom;
+    const lucroLiquido = receita - cmv - despPessoal - despOp - despCom - despFin - impostos;
 
     return {
       margemBruta: receita > 0 ? (lucroBruto / receita) * 100 : 0,
