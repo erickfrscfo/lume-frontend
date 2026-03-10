@@ -31,7 +31,7 @@ interface Transaction {
   status?: string;
   source?: string;
   category?: { name: string; group: string; code?: string };
-  counterparty?: { id: string; name: string; document?: string; type?: string } | null;
+  counterparty?: { id: string; name: string; document: string | null; type: string | null } | null;
   detail?: {
     dueDate: string | null;
     paymentDate: string | null;
