@@ -14,6 +14,7 @@ import { ExplainButton } from '@/components/ExplainModal';
 import DateRangePicker from '@/components/DateRangePicker';
 import CostClassificationModal from '@/components/CostClassificationModal';
 import ConciliacaoDashboardBlock from '../components/ConciliacaoDashboardBlock';
+import TransactionDetailModal from '@/components/TransactionDetailModal';
 
 // ============================================
 // TYPES
@@ -27,7 +28,25 @@ interface Transaction {
   tipo_transacao?: 'INCOME' | 'EXPENSE';
   tipo_custo?: 'FIXO' | 'VARIAVEL' | null;
   costConfidence?: number | null;
+  status?: string;
+  source?: string;
   category?: { name: string; group: string; code?: string };
+  counterparty?: { id: string; name: string; document?: string; type?: string } | null;
+  detail?: {
+    dueDate: string | null;
+    paymentDate: string | null;
+    receiptDate: string | null;
+    amountOriginal: number | null;
+    amountPaid: number | null;
+    amountReceived: number | null;
+    discount: number | null;
+    interest: number | null;
+    documentNumber: string | null;
+    bankReference: string | null;
+    reconciliationStatus: string | null;
+    notes: string | null;
+  } | null;
+  notes?: string;
 }
 
 interface DRERow {
@@ -610,6 +629,8 @@ export default function Dashboards() {
   const [isClassifying, setIsClassifying] = useState(false);
   const [txCategoryFilter, setTxCategoryFilter] = useState<string>('all');
   const [txCostTypeFilter, setTxCostTypeFilter] = useState<'all' | 'FIXO' | 'VARIAVEL'>('all');
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -1124,54 +1145,83 @@ export default function Dashboards() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50">
-                  <th className="text-left py-3 px-6 text-slate-500 font-medium">Data</th>
+                  <th className="text-left py-3 px-4 text-slate-500 font-medium">Data</th>
                   <th className="text-left py-3 px-4 text-slate-500 font-medium">Descrição</th>
+                  <th className="text-left py-3 px-4 text-slate-500 font-medium">Contraparte</th>
                   <th className="text-left py-3 px-4 text-slate-500 font-medium">Categoria</th>
-                  <th className="text-left py-3 px-4 text-slate-500 font-medium">Tipo Custo</th>
-                  <th className="text-right py-3 px-6 text-slate-500 font-medium">Valor</th>
+                  <th className="text-left py-3 px-4 text-slate-500 font-medium">Vencimento</th>
+                  <th className="text-left py-3 px-4 text-slate-500 font-medium">Status</th>
+                  <th className="text-right py-3 px-4 text-slate-500 font-medium">Valor</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-slate-400">
+                    <td colSpan={7} className="py-12 text-center text-slate-400">
                       {transactions.length === 0
                         ? 'Nenhuma transação encontrada. Importe um CSV ou adicione manualmente.'
                         : 'Nenhuma transação corresponde aos filtros selecionados.'}
                     </td>
                   </tr>
                 ) : (
-                  filteredTransactions.map((tx) => (
-                    <tr key={tx.id} className="border-b border-slate-100 hover:bg-slate-50">
-                      <td className="py-3 px-6 text-slate-600">{formatDate(tx.date)}</td>
-                      <td className="py-3 px-4 text-slate-900">{tx.description}</td>
-                      <td className="py-3 px-4">
-                        <span className="text-xs px-2 py-1 bg-slate-100 rounded-full text-slate-600">
-                          {tx.category?.name || 'Sem categoria'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        {getTxType(tx) === 'EXPENSE' && tx.tipo_custo ? (
-                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            tx.tipo_custo === 'FIXO'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
-                            {tx.tipo_custo === 'FIXO' ? 'Fixo' : 'Variável'}
+                  filteredTransactions.map((tx) => {
+                    const isOverdue = tx.detail?.dueDate && !tx.detail?.paymentDate && !tx.detail?.receiptDate && new Date(tx.detail.dueDate) < new Date();
+                    return (
+                      <tr
+                        key={tx.id}
+                        className={`border-b border-slate-100 hover:bg-blue-50/50 cursor-pointer transition-colors ${isOverdue ? 'bg-red-50/30' : ''}`}
+                        onClick={() => { setSelectedTransaction(tx); setShowDetailModal(true); }}
+                      >
+                        <td className="py-3 px-4 text-slate-600 whitespace-nowrap">{formatDate(tx.date)}</td>
+                        <td className="py-3 px-4 text-slate-900 max-w-[200px] truncate" title={tx.description}>{tx.description}</td>
+                        <td className="py-3 px-4">
+                          {tx.counterparty ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs">
+                              <span className="w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0">
+                                {tx.counterparty.name.charAt(0)}
+                              </span>
+                              <span className="text-slate-700 truncate max-w-[120px]" title={tx.counterparty.name}>{tx.counterparty.name}</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-300">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-xs px-2 py-1 bg-slate-100 rounded-full text-slate-600">
+                            {tx.category?.name || 'Sem categoria'}
                           </span>
-                        ) : getTxType(tx) === 'INCOME' ? (
-                          <span className="text-xs text-slate-300">—</span>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">Não classificado</span>
-                        )}
-                      </td>
-                      <td className={`py-3 px-6 text-right font-medium ${
-                        getTxType(tx) === 'INCOME' ? 'text-emerald-600' : 'text-red-600'
-                      }`}>
-                        {getTxType(tx) === 'INCOME' ? '+' : '-'}{formatCurrencyFull(Math.abs(tx.amount))}
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {tx.detail?.dueDate ? (
+                            <span className={`text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-slate-600'}`}>
+                              {formatDate(tx.detail.dueDate)}
+                              {isOverdue && <span className="ml-1 text-[10px] bg-red-100 text-red-600 px-1 py-0.5 rounded">Vencida</span>}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-300">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          {(() => {
+                            const status = tx.status || 'PENDING';
+                            const labels: Record<string, { label: string; cls: string }> = {
+                              PENDING: { label: 'Pendente', cls: 'bg-amber-50 text-amber-600 border-amber-200' },
+                              COMPLETED: { label: 'Concluída', cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+                              OVERDUE: { label: 'Vencida', cls: 'bg-red-50 text-red-600 border-red-200' },
+                              PARTIAL: { label: 'Parcial', cls: 'bg-blue-50 text-blue-600 border-blue-200' },
+                            };
+                            const s = labels[status] || labels.PENDING;
+                            return <span className={`text-xs px-2 py-1 rounded-full border font-medium ${s.cls}`}>{s.label}</span>;
+                          })()}
+                        </td>
+                        <td className={`py-3 px-4 text-right font-medium whitespace-nowrap ${
+                          getTxType(tx) === 'INCOME' ? 'text-emerald-600' : 'text-red-600'
+                        }`}>
+                          {getTxType(tx) === 'INCOME' ? '+' : '-'}{formatCurrencyFull(Math.abs(tx.amount))}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1204,6 +1254,14 @@ export default function Dashboards() {
           )}
         </div>
       )}
+
+      {/* Modal de detalhes da transação */}
+      <TransactionDetailModal
+        transaction={selectedTransaction}
+        isOpen={showDetailModal}
+        onClose={() => { setShowDetailModal(false); setSelectedTransaction(null); }}
+        onSave={() => { setShowDetailModal(false); setSelectedTransaction(null); loadTransactions(); }}
+      />
     </div>
   );
 }

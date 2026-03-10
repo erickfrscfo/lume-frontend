@@ -70,6 +70,8 @@ export const financialApi = {
     notes?: string;
   }) => api.post('/financial/transactions', data),
   deleteTransaction: (id: string) => api.delete(`/financial/transactions/${id}`),
+  updateTransaction: (id: string, data: Record<string, any>) =>
+    api.patch(`/financial/transactions/${id}`, data),
 // NOVO: Buscar breakdown de custos
  costBreakdown: (months: number = 6) =>
    api.get(`/financial/cost-breakdown?months=${months}`),
