@@ -77,6 +77,7 @@ export default function AlertasIA() {
       await alertsApi.markRead(id);
       setAlerts(prev => prev.map(a => a.id === id ? { ...a, isRead: true } : a));
       if (summary) setSummary({ ...summary, unread: Math.max(0, summary.unread - 1) });
+      window.dispatchEvent(new CustomEvent('alert-read'));
     } catch (err) {
       console.error('Erro ao marcar como lido:', err);
     }
@@ -87,6 +88,7 @@ export default function AlertasIA() {
       await alertsApi.dismiss(id);
       setAlerts(prev => prev.filter(a => a.id !== id));
       if (summary) setSummary({ ...summary, total: summary.total - 1 });
+      window.dispatchEvent(new CustomEvent('alert-dismissed'));
     } catch (err) {
       console.error('Erro ao descartar alerta:', err);
     }
@@ -155,10 +157,10 @@ export default function AlertasIA() {
             <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white">
               <Sparkles className="w-6 h-6" />
             </div>
-            Alertas Inteligentes
+            Alertas Financeiros
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Insights gerados automaticamente pela IA a partir dos seus dados financeiros
+            Insights financeiros gerados automaticamente pela IA a partir dos seus dados
           </p>
         </div>
         <button

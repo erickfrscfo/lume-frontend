@@ -193,55 +193,7 @@ export default function ConciliacaoDashboardBlock() {
         )}
       </div>
 
-      {/* Bloco: Smart Alerts / AI Insights */}
-      {insights.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Alertas Inteligentes</h3>
-            <Link
-              to="/insights"
-              className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium"
-            >
-              Ver todos <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            {insights.map((insight) => {
-              const sev = getSeverityLabel(insight.severity);
-              return (
-                <div
-                  key={insight.id}
-                  className={`border-l-4 rounded-lg p-3 ${getSeverityColor(insight.severity)}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${sev.color}`}>
-                          {sev.label}
-                        </span>
-                        <span className="text-xs text-gray-500 capitalize">
-                          {insight.insightType.replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                      <p className="text-sm font-medium text-gray-900 truncate">{insight.title}</p>
-                      <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{insight.description}</p>
-                    </div>
-                    {insight.potentialSavings > 0 && (
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-xs text-gray-500">Economia potencial</p>
-                        <p className="text-sm font-semibold text-green-600">
-                          {formatCurrency(insight.potentialSavings)}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Alertas removidos — ficam apenas na página Alertas Financeiros */}
     </div>
   );
 }

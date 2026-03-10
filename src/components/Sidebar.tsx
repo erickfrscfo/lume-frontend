@@ -12,14 +12,15 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { alertsApi } from '@/lib/api';
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Geral' },
   { path: '/reuniao', icon: MessageSquare, label: 'Reunião Executiva' },
   { path: '/dados', icon: Upload, label: 'Inserção de Dados' },
   { path: '/dashboards', icon: BarChart3, label: 'Dashboards' },
-  { path: '/alertas', icon: Bell, label: 'Alertas IA' },
+  { path: '/alertas', icon: Bell, label: 'Alertas Financeiros' },
   { path: '/integracoes', icon: Link2, label: 'Integrações' },
 ];
 
@@ -28,6 +29,38 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
+
+  // Carregar contagem de alertas não dispensados
+  useEffect(() => {
+    const fetchAlertCount = () => {
+      alertsApi.list()
+        .then((res) => {
+          const summary = res.data?.data?.summary;
+          if (summary) setAlertCount(summary.unread);
+        })
+        .catch(() => {});
+    };
+
+    fetchAlertCount();
+
+    // Atualizar a cada 60 segundos
+    const interval = setInterval(fetchAlertCount, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Escutar evento customizado para atualizar contagem quando alerta é dispensado
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      setAlertCount(prev => Math.max(0, prev - 1));
+    };
+    window.addEventListener('alert-dismissed' as any, handler);
+    window.addEventListener('alert-read' as any, handler);
+    return () => {
+      window.removeEventListener('alert-dismissed' as any, handler);
+      window.removeEventListener('alert-read' as any, handler);
+    };
+  }, []);
 
   return (
     <aside
@@ -53,6 +86,8 @@ export default function Sidebar() {
       <nav className="flex-1 p-3 space-y-1">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
+          const showBadge = item.path === '/alertas' && alertCount > 0;
+
           return (
             <button
               key={item.path}
@@ -77,10 +112,26 @@ export default function Sidebar() {
               }}
               title={collapsed ? item.label : undefined}
             >
-              <item.icon className="w-5 h-5 flex-shrink-0" style={{ color: isActive ? '#ffffff' : '#64748b' }} />
-              {!collapsed && item.label}
-              {isActive && !collapsed && (
-                <ChevronRight className="w-4 h-4 ml-auto" style={{ color: '#ffffff' }} />
+              <div className="relative flex-shrink-0">
+                <item.icon className="w-5 h-5" style={{ color: isActive ? '#ffffff' : '#64748b' }} />
+                {showBadge && collapsed && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                    {alertCount > 99 ? '99+' : alertCount}
+                  </span>
+                )}
+              </div>
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {showBadge && (
+                    <span className="min-w-[20px] h-[20px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                      {alertCount > 99 ? '99+' : alertCount}
+                    </span>
+                  )}
+                  {isActive && !showBadge && (
+                    <ChevronRight className="w-4 h-4 ml-auto" style={{ color: '#ffffff' }} />
+                  )}
+                </>
               )}
             </button>
           );

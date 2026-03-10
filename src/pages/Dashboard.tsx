@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { financialApi, scenariosApi, aiApi, alertsApi, forecastApi } from '@/lib/api';
 import { formatCurrency, getMonthLabel } from '@/lib/utils';
 import MetricCard from '@/components/MetricCard';
-import { AlertsBanner, AlertsPanel } from '@/components/AlertsPanel';
+// AlertsBanner e AlertsPanel removidos — alertas ficam apenas na página Alertas Financeiros
 import { ExplainButton } from '@/components/ExplainModal';
 import CashflowChart from '@/components/CashflowChart';
 import type { CashflowDataPoint, Scenario as ChartScenario } from '@/components/CashflowChart';
@@ -399,7 +399,7 @@ export default function Dashboard() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scenariosOpen, setScenariosOpen] = useState(true);
-  const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
+  // alertsPanelOpen removido — alertas ficam apenas na página Alertas Financeiros
   const [pendingCostClassifications, setPendingCostClassifications] = useState(0);
   const [error, setError] = useState('');
   const [showNewForm, setShowNewForm] = useState(false);
@@ -678,7 +678,7 @@ Pedido do usuário: ${userMsg}`;
 
         {error && <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>}
 
-        <AlertsBanner onViewAll={() => setAlertsPanelOpen(true)} />
+
 
         {/* Banner de Classificações Pendentes */}
         {pendingCostClassifications > 0 && (
@@ -1086,7 +1086,7 @@ Pedido do usuário: ${userMsg}`;
           )}
         </div>
       </div>
-      <AlertsPanel isOpen={alertsPanelOpen} onClose={() => setAlertsPanelOpen(false)} />
+
     </div>
   );
 }
