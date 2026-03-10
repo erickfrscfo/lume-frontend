@@ -130,15 +130,16 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
     if (!transaction) return;
     setIsSaving(true);
     try {
+      // Enviar null explicitamente quando campo é limpo (para derivar status PENDING)
       await financialApi.updateTransaction(transaction.id, {
         description: formData.description,
         amount: parseFloat(formData.amount),
         date: formData.date,
         notes: formData.notes || undefined,
         counterpartyId: formData.counterpartyId || undefined,
-        dueDate: formData.dueDate || undefined,
-        paymentDate: formData.paymentDate || undefined,
-        receiptDate: formData.receiptDate || undefined,
+        dueDate: formData.dueDate || null,
+        paymentDate: formData.paymentDate || null,
+        receiptDate: formData.receiptDate || null,
         amountPaid: formData.amountPaid ? parseFloat(formData.amountPaid) : undefined,
         amountReceived: formData.amountReceived ? parseFloat(formData.amountReceived) : undefined,
         discount: formData.discount ? parseFloat(formData.discount) : undefined,
@@ -180,7 +181,14 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
     PARTIAL: { label: 'Parcial', color: 'bg-blue-50 text-blue-600' },
   };
 
-  const statusInfo = statusLabels[transaction.status || 'PENDING'];
+  // Status derivado: baseado em paymentDate/receiptDate, não no campo status
+  const derivedStatus = (() => {
+    if (isExpense && transaction.detail?.paymentDate) return 'COMPLETED';
+    if (isIncome && transaction.detail?.receiptDate) return 'COMPLETED';
+    if (transaction.detail?.dueDate && new Date(transaction.detail.dueDate) < new Date()) return 'OVERDUE';
+    return 'PENDING';
+  })();
+  const statusInfo = statusLabels[derivedStatus];
   const reconcInfo = reconciliationLabels[transaction.detail?.reconciliationStatus || 'PENDING'];
 
   return (

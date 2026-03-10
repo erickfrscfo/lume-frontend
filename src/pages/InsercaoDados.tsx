@@ -437,18 +437,34 @@ export default function InsercaoDados() {
               <div>
                 <p className="font-medium text-blue-900">Template CSV</p>
                 <p className="text-sm text-blue-700">
-                  Colunas: data, descricao, valor, tipo, categoria, contraparte, documento, vencimento, referencia_bancaria
+                  Colunas: data, descricao, valor, tipo, contraparte, vencimento, data_pagamento, data_recebimento, documento, observacao
                 </p>
               </div>
             </div>
-            <a
-              href="/templates/template-transacoes.csv"
-              download
+            <button
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token');
+                  const API_URL = import.meta.env.VITE_API_URL || 'https://lume-mvp-production.up.railway.app';
+                  const response = await fetch(`${API_URL}/api/upload/template`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+                  const blob = await response.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'template_transacoes_v3.csv';
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error('Erro ao baixar template:', err);
+                }
+              }}
               className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
             >
               <Download className="w-3.5 h-3.5" />
               Baixar
-            </a>
+            </button>
           </div>
 
           {/* Drop Zone */}
