@@ -442,23 +442,23 @@ export default function InsercaoDados() {
               </div>
             </div>
             <button
-              onClick={async () => {
-                try {
-                  const token = localStorage.getItem('token');
-                  const API_URL = import.meta.env.VITE_API_URL || 'https://lume-mvp-production.up.railway.app';
-                  const response = await fetch(`${API_URL}/api/upload/template`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                  });
-                  const blob = await response.blob();
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = 'template_transacoes_v3.csv';
-                  a.click();
-                  window.URL.revokeObjectURL(url);
-                } catch (err) {
-                  console.error('Erro ao baixar template:', err);
-                }
+              onClick={() => {
+                const header = 'data;descricao;valor;tipo;contraparte;vencimento;data_pagamento;data_recebimento;documento;observacao';
+                const examples = [
+                  '01/01/2025;Pagamento Aluguel;-3500.00;SAIDA;Imobiliaria Central;05/01/2025;03/01/2025;;NF-001;Aluguel sede',
+                  '05/01/2025;Recebimento Cliente;12000.00;ENTRADA;ABC Tecnologia;10/01/2025;;08/01/2025;NF-100;Projeto web',
+                  '10/01/2025;Compra Material;-850.50;SAIDA;Papelaria Express;15/01/2025;;;NF-050;Material escritorio',
+                  '15/01/2025;Salarios;-25000.00;SAIDA;;20/01/2025;18/01/2025;;FOL-001;Folha janeiro',
+                  '20/01/2025;Servico Consultoria;8500.00;ENTRADA;Cliente XYZ;25/01/2025;;;NF-200;Consultoria mensal',
+                ];
+                const csvContent = '\uFEFF' + header + '\n' + examples.join('\n') + '\n';
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'template_transacoes_v3.csv';
+                a.click();
+                window.URL.revokeObjectURL(url);
               }}
               className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
             >
