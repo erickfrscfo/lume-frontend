@@ -225,6 +225,7 @@ function transformDREData(rawData: any, profile?: { directCostCodes: string[]; e
 /**
  * Extrai categorias detalhadas de um grupo DRE a partir dos dados brutos.
  * Retorna apenas categorias que possuem lançamentos (valor != 0).
+ * @param prefixes - prefixos inteiros (ex: ['1', '2']) para match por split('.')[0]
  */
 function extractCategoryDetails(
   rawData: any,
@@ -240,8 +241,49 @@ function extractCategoryDetails(
     Object.entries(cats).forEach(([code, amount]) => {
       const prefix = code.split('.')[0];
       if (!prefixes.includes(prefix)) return;
-      // Ignorar códigos de grupo pai (ex: "1.0", "3.0") — agregar apenas subcategorias
-      // Mas se o backend retorna no código pai, incluir também
+      const val = Number(amount) || 0;
+      if (val === 0) return;
+
+      if (!categoryMap[code]) {
+        categoryMap[code] = {
+          code,
+          name: CATEGORY_NAMES[code] || `Categoria ${code}`,
+          values: {},
+          totalValue: 0,
+        };
+      }
+      categoryMap[code].values[monthKey] = (categoryMap[code].values[monthKey] || 0) + val;
+      categoryMap[code].totalValue += val;
+    });
+  });
+
+  return Object.values(categoryMap)
+    .filter(c => c.totalValue !== 0)
+    .sort((a, b) => a.code.localeCompare(b.code));
+}
+
+/**
+ * Extrai categorias que são custo direto conforme o perfil DRE.
+ * Usa startsWith para match preciso (ex: "3.3" match "3.3" mas não "3.1").
+ */
+function extractDirectCostDetails(
+  rawData: any,
+  monthKeys: string[],
+  directCostCodes: string[],
+  excludeFromDirectCost: string[] = []
+): CategoryDetail[] {
+  if (!rawData || monthKeys.length === 0) return [];
+
+  const categoryMap: Record<string, CategoryDetail> = {};
+
+  monthKeys.forEach((monthKey) => {
+    const cats = rawData[monthKey] || {};
+    Object.entries(cats).forEach(([code, amount]) => {
+      // Verificar se é custo direto conforme perfil
+      const isDirectCost = directCostCodes.some(p => code.startsWith(p));
+      const isExcluded = excludeFromDirectCost.some(p => code.startsWith(p));
+      if (!isDirectCost || isExcluded) return;
+
       const val = Number(amount) || 0;
       if (val === 0) return;
 
@@ -266,17 +308,30 @@ function extractCategoryDetails(
 /**
  * Extrai subgrupos de OPEX (Pessoal, Operacional, Comercial, etc.)
  * com suas categorias filhas.
+ * EXCLUI categorias que já foram contadas como custo direto no perfil DRE.
  */
 function extractOpexSubgroups(
   rawData: any,
-  monthKeys: string[]
+  monthKeys: string[],
+  directCostCodes: string[] = [],
+  excludeFromDirectCost: string[] = []
 ): SubgroupDetail[] {
   if (!rawData || monthKeys.length === 0) return [];
+
+  // Função helper: verifica se um código de categoria é custo direto
+  const isDirectCostCode = (code: string): boolean => {
+    const isExcluded = excludeFromDirectCost.some(p => code.startsWith(p));
+    if (isExcluded) return false;
+    return directCostCodes.some(p => code.startsWith(p));
+  };
 
   const subgroups: SubgroupDetail[] = [];
 
   Object.entries(OPEX_SUBGROUPS).forEach(([prefix, name]) => {
-    const categories = extractCategoryDetails(rawData, monthKeys, [prefix]);
+    // Extrair todas as categorias do prefixo
+    const allCategories = extractCategoryDetails(rawData, monthKeys, [prefix]);
+    // Filtrar: remover categorias que já são custo direto
+    const categories = allCategories.filter(cat => !isDirectCostCode(cat.code));
     if (categories.length === 0) return;
 
     const totals: Record<string, number> = {};
@@ -344,20 +399,25 @@ function DRETable({
     [rawDreData, monthKeys]
   );
 
-  // Extrair prefixos únicos dos códigos de custo direto do perfil
-  const cogsPrefixes = useMemo(() => {
-    if (!dreProfile?.directCostCodes) return ['3'];
-    return [...new Set(dreProfile.directCostCodes.map(c => c.split('.')[0]))];
+  // Códigos de custo direto do perfil DRE
+  const directCostCodes = useMemo(() => {
+    return dreProfile?.directCostCodes || ['3.'];
   }, [dreProfile]);
 
+  const excludeFromDirectCost = useMemo(() => {
+    return dreProfile?.excludeFromDirectCost || [];
+  }, [dreProfile]);
+
+  // Usar extractDirectCostDetails para filtrar por código preciso (startsWith)
   const cogsDetails = useMemo(
-    () => extractCategoryDetails(rawDreData, monthKeys, cogsPrefixes),
-    [rawDreData, monthKeys, cogsPrefixes]
+    () => extractDirectCostDetails(rawDreData, monthKeys, directCostCodes, excludeFromDirectCost),
+    [rawDreData, monthKeys, directCostCodes, excludeFromDirectCost]
   );
 
+  // OPEX: excluir categorias que já são custo direto
   const opexSubgroups = useMemo(
-    () => extractOpexSubgroups(rawDreData, monthKeys),
-    [rawDreData, monthKeys]
+    () => extractOpexSubgroups(rawDreData, monthKeys, directCostCodes, excludeFromDirectCost),
+    [rawDreData, monthKeys, directCostCodes, excludeFromDirectCost]
   );
 
   if (dreData.length === 0) {
