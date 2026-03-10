@@ -589,41 +589,30 @@ Pedido do usuário: ${userMsg}`;
     // Custos Diretos (CMV/CSP/CPV conforme setor) — usa perfil dinâmico
     const directCostCodes = dreProfile?.directCostCodes || ['3.'];
     const excludeCodes = dreProfile?.excludeFromDirectCost || [];
+
+    // Helper: verifica se um código é custo direto
+    const isDirectCost = (code: string): boolean => {
+      const isDirect = directCostCodes.some(prefix => code.startsWith(prefix));
+      const isExcluded = excludeCodes.some(prefix => code.startsWith(prefix));
+      return isDirect && !isExcluded;
+    };
+
     const cmv = Object.entries(monthData)
+      .filter(([k]) => isDirectCost(k))
+      .reduce((sum, [, v]) => sum + v, 0);
+
+    // Despesas Operacionais = categorias 3.x a 8.x que NÃO são custo direto
+    // Isso evita contar duas vezes categorias como 4.1 e 4.4 que já estão no CMV/CSP
+    const opex = Object.entries(monthData)
       .filter(([k]) => {
-        const isDirectCost = directCostCodes.some(prefix => k.startsWith(prefix));
-        const isExcluded = excludeCodes.some(prefix => k.startsWith(prefix));
-        return isDirectCost && !isExcluded;
+        const prefix = k.split('.')[0];
+        if (!['3', '4', '5', '6', '7', '8'].includes(prefix)) return false;
+        return !isDirectCost(k);
       })
       .reduce((sum, [, v]) => sum + v, 0);
 
-    // Despesas com Pessoal = código 4.x (NÃO é imposto!)
-    const despPessoal = Object.entries(monthData)
-      .filter(([k]) => k.startsWith('4.'))
-      .reduce((sum, [, v]) => sum + v, 0);
-
-    // Despesas Operacionais = código 5.x
-    const despOp = Object.entries(monthData)
-      .filter(([k]) => k.startsWith('5.'))
-      .reduce((sum, [, v]) => sum + v, 0);
-
-    // Despesas Comerciais = código 6.x
-    const despCom = Object.entries(monthData)
-      .filter(([k]) => k.startsWith('6.'))
-      .reduce((sum, [, v]) => sum + v, 0);
-
-    // Despesas Financeiras = código 7.x
-    const despFin = Object.entries(monthData)
-      .filter(([k]) => k.startsWith('7.'))
-      .reduce((sum, [, v]) => sum + v, 0);
-
-    // Impostos e Tributos = código 8.x (CORRETO!)
-    const impostos = Object.entries(monthData)
-      .filter(([k]) => k.startsWith('8.'))
-      .reduce((sum, [, v]) => sum + v, 0);
-
     const lucroBruto = receita - cmv;
-    const lucroLiquido = receita - cmv - despPessoal - despOp - despCom - despFin - impostos;
+    const lucroLiquido = receita - cmv - opex;
 
     return {
       margemBruta: receita > 0 ? (lucroBruto / receita) * 100 : 0,
