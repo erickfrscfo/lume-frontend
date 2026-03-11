@@ -22,12 +22,19 @@ interface MetricValue {
   change: number;
 }
 
+interface PendingInfo {
+  totalExpenses: number;
+  totalIncome: number;
+  count: number;
+}
+
 interface DashboardData {
   cashBalance: MetricValue;
   burnRate: MetricValue;
   runway: MetricValue;
   growth: MetricValue;
   transactionCount: number;
+  pending?: PendingInfo;
 }
 
 interface DREData {
@@ -570,6 +577,7 @@ Pedido do usuário: ${userMsg}`;
   const cashBalanceChange = extractChange(dashData?.cashBalance);
   // growth removido — indicador Fluxo de Caixa Líquido retirado da tela
   const transactionCount = dashData?.transactionCount || 0;
+  const pendingInfo = dashData?.pending;
 
   // Calcular margens do último mês com dados a partir da DRE
   const { margemBruta, margemLiquida } = useMemo(() => {
@@ -712,6 +720,39 @@ Pedido do usuário: ${userMsg}`;
           <MetricCard title="Margem Bruta" value={margemBruta} icon={TrendingUp} showChange={false} format="percent" subtitle={dreProfile ? `${dreProfile.directCostLabel} → ${dreProfile.grossProfitLabel}` : '(Lucro Bruto / Receita) × 100'} colorTheme={margemBruta >= 30 ? 'green' : 'red'} />
           <MetricCard title="Margem Líquida" value={margemLiquida} icon={Percent} showChange={false} format="percent" subtitle="(Lucro Líquido / Receita) × 100" colorTheme={margemLiquida >= 10 ? 'green' : margemLiquida >= 0 ? 'blue' : 'red'} />
         </div>
+
+        {/* Indicador de Transações Pendentes */}
+        {pendingInfo && pendingInfo.count > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Calendar className="w-5 h-5 text-orange-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-orange-900">
+                  {pendingInfo.count} transação{pendingInfo.count !== 1 ? 'ões' : ''} pendente{pendingInfo.count !== 1 ? 's' : ''} (não contabilizada{pendingInfo.count !== 1 ? 's' : ''} no caixa)
+                </p>
+                <div className="flex gap-4 mt-1">
+                  {pendingInfo.totalIncome > 0 && (
+                    <span className="text-xs text-emerald-700">
+                      <TrendingUp className="w-3 h-3 inline mr-1" />
+                      A receber: {formatCurrency(pendingInfo.totalIncome)}
+                    </span>
+                  )}
+                  {pendingInfo.totalExpenses > 0 && (
+                    <span className="text-xs text-red-700">
+                      <TrendingDown className="w-3 h-3 inline mr-1" />
+                      A pagar: {formatCurrency(pendingInfo.totalExpenses)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <a href="/dashboards" className="text-xs font-medium text-orange-700 hover:text-orange-900 border border-orange-300 bg-white rounded-md px-3 py-1.5 transition-colors">
+                Ver transações
+              </a>
+            </div>
+          </div>
+        )}
 
         <CashflowChart data={cashflowData} scenarios={chartScenarios} initialBalance={0} forecastStartMonth={forecastStartMonth} />
 

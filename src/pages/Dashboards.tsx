@@ -629,6 +629,11 @@ export default function Dashboards() {
   const [isClassifying, setIsClassifying] = useState(false);
   const [txCategoryFilter, setTxCategoryFilter] = useState<string>('all');
   const [txCostTypeFilter, setTxCostTypeFilter] = useState<'all' | 'FIXO' | 'VARIAVEL'>('all');
+  const [txStatusFilter, setTxStatusFilter] = useState<'all' | 'PENDING' | 'COMPLETED' | 'OVERDUE'>('all');
+  const [txDueDateStart, setTxDueDateStart] = useState('');
+  const [txDueDateEnd, setTxDueDateEnd] = useState('');
+  const [appliedDueDateStart, setAppliedDueDateStart] = useState('');
+  const [appliedDueDateEnd, setAppliedDueDateEnd] = useState('');
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
@@ -639,7 +644,7 @@ export default function Dashboards() {
 
   useEffect(() => {
     loadTransactions();
-  }, [txPage, txFilter, appliedStartDate, appliedEndDate]);
+  }, [txPage, txFilter, appliedStartDate, appliedEndDate, txStatusFilter, appliedDueDateStart, appliedDueDateEnd]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -670,7 +675,10 @@ export default function Dashboards() {
         txPage,
         txFilter === 'all' ? undefined : txFilter,
         appliedStartDate || undefined,
-        appliedEndDate || undefined
+        appliedEndDate || undefined,
+        txStatusFilter === 'all' ? undefined : txStatusFilter,
+        appliedDueDateStart || undefined,
+        appliedDueDateEnd || undefined
       );
       setTransactions(res.data.data || []);
     } catch (err) {
@@ -737,7 +745,10 @@ export default function Dashboards() {
           page,
           txFilter === 'all' ? undefined : txFilter,
           appliedStartDate || undefined,
-          appliedEndDate || undefined
+          appliedEndDate || undefined,
+          txStatusFilter === 'all' ? undefined : txStatusFilter,
+          appliedDueDateStart || undefined,
+          appliedDueDateEnd || undefined
         );
         const txs = res.data.data || [];
         allTransactions.push(...txs);
@@ -1117,9 +1128,19 @@ export default function Dashboards() {
                 <option value="FIXO">Custo Fixo</option>
                 <option value="VARIAVEL">Custo Variável</option>
               </select>
-              {(txCategoryFilter !== 'all' || txCostTypeFilter !== 'all') && (
+              <select
+                value={txStatusFilter}
+                onChange={(e) => { setTxStatusFilter(e.target.value as any); setTxPage(1); }}
+                className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="all">Todos Status</option>
+                <option value="COMPLETED">Concluído</option>
+                <option value="PENDING">Pendente</option>
+                <option value="OVERDUE">Vencido</option>
+              </select>
+              {(txCategoryFilter !== 'all' || txCostTypeFilter !== 'all' || txStatusFilter !== 'all') && (
                 <button
-                  onClick={() => { setTxCategoryFilter('all'); setTxCostTypeFilter('all'); }}
+                  onClick={() => { setTxCategoryFilter('all'); setTxCostTypeFilter('all'); setTxStatusFilter('all'); }}
                   className="text-xs text-blue-600 hover:text-blue-800 underline"
                 >
                   Limpar filtros
@@ -1127,19 +1148,56 @@ export default function Dashboards() {
               )}
             </div>
 
-            <DateRangePicker
-              startDate={txStartDate}
-              endDate={txEndDate}
-              onChangeStart={setTxStartDate}
-              onChangeEnd={setTxEndDate}
-              onApply={applyDateFilter}
-              onClear={clearDateFilter}
-            />
-            {appliedStartDate && appliedEndDate && (
-              <p className="text-xs text-slate-400 mt-2">
-                Exibindo transações de {new Date(appliedStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(appliedEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
-              </p>
-            )}
+            {/* Filtros de data */}
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <DateRangePicker
+                startDate={txStartDate}
+                endDate={txEndDate}
+                onChangeStart={setTxStartDate}
+                onChangeEnd={setTxEndDate}
+                onApply={applyDateFilter}
+                onClear={clearDateFilter}
+              />
+              {appliedStartDate && appliedEndDate && (
+                <span className="text-xs text-slate-400">
+                  Transações de {new Date(appliedStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(appliedEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
+                </span>
+              )}
+
+              <div className="flex items-center gap-2 ml-4">
+                <span className="text-xs text-slate-500 font-medium">Vencimento:</span>
+                <input
+                  type="date"
+                  value={txDueDateStart}
+                  onChange={(e) => setTxDueDateStart(e.target.value)}
+                  className="text-sm border border-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  placeholder="De"
+                />
+                <span className="text-xs text-slate-400">até</span>
+                <input
+                  type="date"
+                  value={txDueDateEnd}
+                  onChange={(e) => setTxDueDateEnd(e.target.value)}
+                  className="text-sm border border-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  placeholder="Até"
+                />
+                <button
+                  onClick={() => { setAppliedDueDateStart(txDueDateStart); setAppliedDueDateEnd(txDueDateEnd); setTxPage(1); }}
+                  disabled={!txDueDateStart && !txDueDateEnd}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:text-slate-300 disabled:cursor-not-allowed px-2 py-1"
+                >
+                  Aplicar
+                </button>
+                {(appliedDueDateStart || appliedDueDateEnd) && (
+                  <button
+                    onClick={() => { setTxDueDateStart(''); setTxDueDateEnd(''); setAppliedDueDateStart(''); setAppliedDueDateEnd(''); setTxPage(1); }}
+                    className="text-xs text-red-500 hover:text-red-700 underline"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -1203,6 +1261,7 @@ export default function Dashboards() {
                         </td>
                         <td className="py-3 px-4">
                           {(() => {
+                            // Status vem do banco (derivado pelo backend)
                             const status = tx.status || 'PENDING';
                             const labels: Record<string, { label: string; cls: string }> = {
                               PENDING: { label: 'Pendente', cls: 'bg-amber-50 text-amber-600 border-amber-200' },
