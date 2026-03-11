@@ -569,6 +569,8 @@ export default function Dashboard() {
       await scenariosApi.delete(id);
       setScenarios(prev => prev.filter(s => s.id !== id));
       if (selectedScenario?.id === id) setSelectedScenario(null);
+      // Limpar histórico de chat para evitar que a IA recrie cenários excluídos
+      setChatMessages([]);
     } catch (err) { console.error('Erro ao excluir cenário:', err); }
   };
 
