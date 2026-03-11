@@ -378,32 +378,32 @@ export default function CashflowChart({
 
           {/* ===== BARS — income above zero, expense below zero ===== */}
 
-          {/* 1. Income — green, above zero */}
-          <Bar yAxisId="bars" dataKey="income" maxBarSize={40} radius={[4, 4, 0, 0]}>
+          {/* 1. Income — green, above zero (stacked with scenario income) */}
+          <Bar yAxisId="bars" dataKey="income" stackId="positive" maxBarSize={40} radius={[0, 0, 0, 0]}>
             {chartData.map((e, i) => (
               <Cell key={i} fill={e.isForecast ? COLORS.incomeForecast : COLORS.income} />
             ))}
           </Bar>
 
-          {/* 2. Expense — red, below zero (values are negative) */}
-          <Bar yAxisId="bars" dataKey="expense" maxBarSize={40} radius={[0, 0, 4, 4]}>
-            {chartData.map((e, i) => (
-              <Cell key={i} fill={e.isForecast ? COLORS.expenseForecast : COLORS.expense} />
-            ))}
-          </Bar>
-
-          {/* 3. Scenario Income — purple bars above zero (receita do cenário) */}
+          {/* 2. Scenario Income — purple, stacked on top of income */}
           {hasScenario && (
-            <Bar yAxisId="bars" dataKey="scenarioIncome" maxBarSize={40} radius={[4, 4, 0, 0]}>
+            <Bar yAxisId="bars" dataKey="scenarioIncome" stackId="positive" maxBarSize={40} radius={[4, 4, 0, 0]}>
               {chartData.map((e, i) => (
                 <Cell key={i} fill={e.isForecast ? COLORS.scenarioForecast : COLORS.scenario} />
               ))}
             </Bar>
           )}
 
-          {/* 4. Scenario Expense — purple bars below zero (despesa do cenário) */}
+          {/* 3. Expense — red, below zero (stacked with scenario expense) */}
+          <Bar yAxisId="bars" dataKey="expense" stackId="negative" maxBarSize={40} radius={[0, 0, 0, 0]}>
+            {chartData.map((e, i) => (
+              <Cell key={i} fill={e.isForecast ? COLORS.expenseForecast : COLORS.expense} />
+            ))}
+          </Bar>
+
+          {/* 4. Scenario Expense — purple, stacked below expense */}
           {hasScenario && (
-            <Bar yAxisId="bars" dataKey="scenarioExpense" maxBarSize={40} radius={[0, 0, 4, 4]}>
+            <Bar yAxisId="bars" dataKey="scenarioExpense" stackId="negative" maxBarSize={40} radius={[0, 0, 4, 4]}>
               {chartData.map((e, i) => (
                 <Cell key={i} fill={e.isForecast ? COLORS.scenarioForecast : COLORS.scenario} />
               ))}

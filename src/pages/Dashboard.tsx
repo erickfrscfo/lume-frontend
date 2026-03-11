@@ -237,6 +237,51 @@ function parseNumKeepSign(v: any): number | undefined {
 }
 
 // ============================================
+// SCENARIO MENU (dropdown com opção de excluir)
+// ============================================
+function ScenarioMenu({ onDelete }: { onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        <MoreHorizontal className="w-4 h-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+              if (window.confirm('Tem certeza que deseja excluir este cenário?')) {
+                onDelete();
+              }
+            }}
+            className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Excluir cenário
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================
 // NEW SCENARIO FORM (Manual)
 // ============================================
 interface NewScenarioFormProps {
@@ -349,7 +394,7 @@ function ScenarioDetail({ scenario, onBack, onToggle, onDelete }: ScenarioDetail
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-900 truncate">{scenario.name}</h3>
-            <button className="p-0.5 text-slate-400 hover:text-slate-600"><MoreHorizontal className="w-4 h-4" /></button>
+            <ScenarioMenu onDelete={() => onDelete(scenario.id)} />
           </div>
           <p className="text-xs text-slate-500">{adjustmentItems.length} ajuste{adjustmentItems.length !== 1 ? 's' : ''}</p>
         </div>
@@ -380,7 +425,6 @@ function ScenarioDetail({ scenario, onBack, onToggle, onDelete }: ScenarioDetail
                       ? <ToggleRight className="w-5 h-5 text-blue-500" />
                       : <ToggleLeft className="w-5 h-5 text-slate-400" />}
                   </button>
-                  <button className="p-0.5 text-slate-400 hover:text-slate-600"><MoreHorizontal className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
               {item.amount && (
@@ -1001,7 +1045,7 @@ export default function Dashboard() {
                                       ? <ToggleRight className="w-6 h-6 text-blue-500" />
                                       : <ToggleLeft className="w-6 h-6 text-slate-400" />}
                                   </button>
-                                  <button className="p-0.5 text-slate-400 hover:text-slate-600"><MoreHorizontal className="w-4 h-4" /></button>
+                                  <ScenarioMenu onDelete={() => deleteScenario(scenario.id)} />
                                 </div>
                               </div>
                               {scenario.description && (
