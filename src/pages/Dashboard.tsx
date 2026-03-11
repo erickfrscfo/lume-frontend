@@ -182,25 +182,31 @@ function parseAiScenarios(aiText: string): Array<{
   description?: string;
   adjustments: Record<string, any>;
 }> {
-  // Try to extract JSON from the AI response
-  const jsonMatch = aiText.match(/\[[\s\S]*?\]/);
+  // Try to extract JSON array from the AI response
+  const jsonMatch = aiText.match(/\[\s*\{[\s\S]*?\}\s*\]/);
   if (jsonMatch) {
     try {
       const parsed = JSON.parse(jsonMatch[0]);
       if (Array.isArray(parsed)) {
-        return parsed.map((item: any) => ({
-          name: item.name || item.nome || 'Cenário',
-          type: mapType(item.type || item.tipo || 'PROJECT'),
-          description: item.description || item.descricao || undefined,
-          adjustments: {
-            monthlyRevenue: parseNum(item.adjustments?.monthlyRevenue || item.receita_mensal),
-            monthlyExpense: parseNum(item.adjustments?.monthlyExpense || item.despesa_mensal),
-            oneTimeRevenue: parseNum(item.adjustments?.oneTimeRevenue || item.receita_unica),
-            oneTimeExpense: parseNum(item.adjustments?.oneTimeExpense || item.despesa_unica),
-            startMonth: item.adjustments?.startMonth || item.inicio || undefined,
-            endMonth: item.adjustments?.endMonth || item.fim || undefined,
-          },
-        }));
+        return parsed.map((item: any) => {
+          const adj = item.adjustments || {};
+          // A IA agora envia despesas como valores NEGATIVOS
+          // monthlyExpense: -8000 significa R$ 8.000/mês de despesa
+          // Manter o valor negativo para o gráfico calcular corretamente
+          return {
+            name: item.name || item.nome || 'Cenário',
+            type: mapType(item.type || item.tipo || 'PROJECT'),
+            description: item.description || item.descricao || undefined,
+            adjustments: {
+              monthlyRevenue: parseNumKeepSign(adj.monthlyRevenue || item.receita_mensal),
+              monthlyExpense: parseNumKeepSign(adj.monthlyExpense || item.despesa_mensal),
+              oneTimeRevenue: parseNumKeepSign(adj.oneTimeRevenue || item.receita_unica),
+              oneTimeExpense: parseNumKeepSign(adj.oneTimeExpense || item.despesa_unica),
+              startMonth: adj.startMonth || item.inicio || undefined,
+              endMonth: adj.endMonth === null ? undefined : (adj.endMonth || item.fim || undefined),
+            },
+          };
+        });
       }
     } catch (e) {
       // JSON parse failed, continue
@@ -220,6 +226,13 @@ function mapType(t: string): ScenarioType {
 function parseNum(v: any): number | undefined {
   if (v === null || v === undefined) return undefined;
   const n = Number(String(v).replace(/[^\d.-]/g, ''));
+  return isNaN(n) || n === 0 ? undefined : n;
+}
+
+/** Mantém o sinal do número (negativo para despesas) */
+function parseNumKeepSign(v: any): number | undefined {
+  if (v === null || v === undefined) return undefined;
+  const n = Number(v);
   return isNaN(n) || n === 0 ? undefined : n;
 }
 
@@ -249,10 +262,10 @@ function NewScenarioForm({ onSave, onCancel, isSaving }: NewScenarioFormProps) {
     setFormError('');
     if (!name.trim()) { setFormError('Nome é obrigatório'); return; }
     const adjustments: Record<string, any> = {};
-    if (monthlyRevenue) adjustments.monthlyRevenue = parseFloat(monthlyRevenue);
-    if (monthlyExpense) adjustments.monthlyExpense = parseFloat(monthlyExpense);
-    if (oneTimeRevenue) adjustments.oneTimeRevenue = parseFloat(oneTimeRevenue);
-    if (oneTimeExpense) adjustments.oneTimeExpense = parseFloat(oneTimeExpense);
+    if (monthlyRevenue) adjustments.monthlyRevenue = Math.abs(parseFloat(monthlyRevenue));
+    if (monthlyExpense) adjustments.monthlyExpense = -Math.abs(parseFloat(monthlyExpense)); // negativo = saída
+    if (oneTimeRevenue) adjustments.oneTimeRevenue = Math.abs(parseFloat(oneTimeRevenue));
+    if (oneTimeExpense) adjustments.oneTimeExpense = -Math.abs(parseFloat(oneTimeExpense)); // negativo = saída
     if (startMonth) adjustments.startMonth = startMonth;
     if (endMonth) adjustments.endMonth = endMonth;
     try {
@@ -319,11 +332,12 @@ function ScenarioDetail({ scenario, onBack, onToggle, onDelete }: ScenarioDetail
   const adj = scenario.adjustments || {};
 
   // Build list of adjustments as sub-items
-  const adjustmentItems: { name: string; amount?: string; period?: string }[] = [];
-  if (adj.monthlyRevenue) adjustmentItems.push({ name: 'Receita Mensal', amount: `${formatCurrency(adj.monthlyRevenue)} mensal`, period: adj.startMonth && adj.endMonth ? `${adj.startMonth} a ${adj.endMonth}` : undefined });
-  if (adj.monthlyExpense) adjustmentItems.push({ name: 'Despesa Mensal', amount: `${formatCurrency(adj.monthlyExpense)} mensal`, period: adj.startMonth && adj.endMonth ? `${adj.startMonth} a ${adj.endMonth}` : undefined });
-  if (adj.oneTimeRevenue) adjustmentItems.push({ name: 'Receita Única', amount: formatCurrency(adj.oneTimeRevenue) });
-  if (adj.oneTimeExpense) adjustmentItems.push({ name: 'Despesa Única', amount: formatCurrency(adj.oneTimeExpense) });
+  const adjustmentItems: { name: string; amount?: string; period?: string; isExpense?: boolean }[] = [];
+  const periodStr = adj.startMonth ? (adj.endMonth ? `${adj.startMonth} a ${adj.endMonth}` : `A partir de ${adj.startMonth}`) : undefined;
+  if (adj.monthlyRevenue) adjustmentItems.push({ name: 'Receita Mensal', amount: `+${formatCurrency(Math.abs(adj.monthlyRevenue))}/mês`, period: periodStr });
+  if (adj.monthlyExpense) adjustmentItems.push({ name: 'Despesa Mensal', amount: `-${formatCurrency(Math.abs(adj.monthlyExpense))}/mês`, period: periodStr, isExpense: true });
+  if (adj.oneTimeRevenue) adjustmentItems.push({ name: 'Receita Única', amount: `+${formatCurrency(Math.abs(adj.oneTimeRevenue))}` });
+  if (adj.oneTimeExpense) adjustmentItems.push({ name: 'Despesa Única', amount: `-${formatCurrency(Math.abs(adj.oneTimeExpense))}`, isExpense: true });
 
   return (
     <div className="flex flex-col h-full">
@@ -372,13 +386,17 @@ function ScenarioDetail({ scenario, onBack, onToggle, onDelete }: ScenarioDetail
               {item.amount && (
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
                   <DollarSign className="w-3 h-3" />
-                  <span>VALOR <span className="text-slate-700 font-medium underline decoration-dotted">{item.amount}</span></span>
+                  <span>VALOR <span className={`font-medium underline decoration-dotted ${item.isExpense ? 'text-red-600' : 'text-emerald-600'}`}>{item.amount}</span></span>
                 </div>
               )}
               {item.period && (
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
                   <Calendar className="w-3 h-3" />
-                  <span>DE <span className="text-slate-700 font-medium underline decoration-dotted">{item.period.split(' a ')[0]}</span> ATÉ <span className="text-slate-700 font-medium underline decoration-dotted">{item.period.split(' a ')[1]}</span></span>
+                  {item.period.includes(' a ') ? (
+                    <span>DE <span className="text-slate-700 font-medium underline decoration-dotted">{item.period.split(' a ')[0]}</span> ATÉ <span className="text-slate-700 font-medium underline decoration-dotted">{item.period.split(' a ')[1]}</span></span>
+                  ) : (
+                    <span className="text-slate-700 font-medium">{item.period}</span>
+                  )}
                 </div>
               )}
             </div>
@@ -512,6 +530,8 @@ export default function Dashboard() {
 
   // ============================================
   // AI CHAT - Send message and create scenarios
+  // Usa endpoint dedicado /api/scenarios/ai-chat
+  // com suporte a follow-up (perguntas antes de criar)
   // ============================================
   const sendChatMessage = async () => {
     if (!chatInput.trim() || isChatLoading) return;
@@ -521,48 +541,46 @@ export default function Dashboard() {
     setIsChatLoading(true);
 
     try {
-      // Build special system context for scenario creation
-      const scenarioPrompt = `O usuário quer criar cenários financeiros para o fluxo de caixa. 
-Interprete o pedido abaixo e crie os cenários apropriados.
-IMPORTANTE: Responda com um texto amigável E inclua um JSON array com os cenários no formato:
-[{"name": "Nome do Cenário", "type": "PROJECT|INVESTMENT|DIVESTMENT|ORGANIZATIONAL_CHANGE", "description": "descrição", "adjustments": {"monthlyRevenue": 0, "monthlyExpense": 0, "oneTimeRevenue": 0, "oneTimeExpense": 0, "startMonth": "2026-03", "endMonth": "2026-06"}}]
-Use valores realistas em BRL. Meses no formato YYYY-MM.
-Pedido do usuário: ${userMsg}`;
-
+      // Enviar histórico completo para manter contexto de follow-up
       const history = chatMessages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
-      const res = await aiApi.chat(scenarioPrompt, history);
-      const aiText = res.data.data?.message || res.data.message || 'Desculpe, não consegui processar seu pedido.';
+      const res = await scenariosApi.aiChat(userMsg, history);
+      const aiData = res.data.data || res.data;
+      const aiText = aiData?.message || 'Desculpe, não consegui processar seu pedido.';
 
-      // Parse scenarios from AI response
+      // Verificar se a IA incluiu cenários na resposta (ou se foi apenas conversa/follow-up)
       const parsedScenarios = parseAiScenarios(aiText);
       const createdScenarios: Scenario[] = [];
 
-      // Create each scenario via API
-      for (const sc of parsedScenarios) {
-        try {
-          const created = await createScenario(sc);
-          if (created) createdScenarios.push(created);
-        } catch (e) {
-          console.error('Erro ao criar cenário da IA:', e);
+      // Se tem cenários, criar via API
+      if (parsedScenarios.length > 0) {
+        for (const sc of parsedScenarios) {
+          try {
+            const created = await createScenario(sc);
+            if (created) createdScenarios.push(created);
+          } catch (e) {
+            console.error('Erro ao criar cenário da IA:', e);
+          }
         }
       }
 
-      // Clean the response text (remove JSON)
-      let cleanText = aiText.replace(/\[[\s\S]*?\]/, '').trim();
-      if (!cleanText) cleanText = `Criei ${createdScenarios.length} novo(s) ajuste(s) no seu Fluxo de Caixa. Você pode editá-los ou desativá-los a qualquer momento.`;
+      // Limpar o JSON da resposta para mostrar apenas o texto
+      let cleanText = aiText.replace(/\[\s*\{[\s\S]*?\}\s*\]/g, '').trim();
+      if (!cleanText && createdScenarios.length > 0) {
+        cleanText = `Pronto! Criei ${createdScenarios.length} cenário(s) no seu Fluxo de Caixa. Você pode ativá-los, desativá-los ou editá-los a qualquer momento.`;
+      }
 
       setChatMessages(prev => [...prev, {
         role: 'assistant',
         content: cleanText,
-        scenariosCreated: createdScenarios,
+        scenariosCreated: createdScenarios.length > 0 ? createdScenarios : undefined,
       }]);
 
-      // Switch to scenarios tab to show the new ones
+      // Se criou cenários, mostrar na aba de cenários
       if (createdScenarios.length > 0) {
         setTimeout(() => setActiveTab('scenarios'), 500);
       }
     } catch (err: any) {
-      console.error('Erro no chat:', err);
+      console.error('Erro no chat de cenários:', err);
       setChatMessages(prev => [...prev, {
         role: 'assistant',
         content: 'Desculpe, ocorreu um erro ao processar seu pedido. Tente novamente ou crie o cenário manualmente.',
@@ -992,10 +1010,10 @@ Pedido do usuário: ${userMsg}`;
                               <div className="flex items-center gap-2 mt-2">
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${typeInfo.color}`}>{typeInfo.label}</span>
                                 {scenario.adjustments?.monthlyExpense && (
-                                  <span className="text-[10px] text-slate-400">{formatCurrency(scenario.adjustments.monthlyExpense)}/mês</span>
+                                  <span className="text-[10px] text-red-500">-{formatCurrency(Math.abs(scenario.adjustments.monthlyExpense))}/mês</span>
                                 )}
                                 {scenario.adjustments?.monthlyRevenue && (
-                                  <span className="text-[10px] text-emerald-500">+{formatCurrency(scenario.adjustments.monthlyRevenue)}/mês</span>
+                                  <span className="text-[10px] text-emerald-500">+{formatCurrency(Math.abs(scenario.adjustments.monthlyRevenue))}/mês</span>
                                 )}
                               </div>
                             </div>
@@ -1022,9 +1040,10 @@ Pedido do usuário: ${userMsg}`;
                         <div className="mt-4 space-y-2 px-2">
                           <p className="text-[10px] text-slate-400 uppercase font-medium">Exemplos:</p>
                           {[
-                            'Quero contratar 2 devs a R$12.000/mês cada a partir de março',
-                            'Estamos planejando um evento de R$50.000 em abril',
-                            'Vamos investir R$200.000 em marketing por 6 meses',
+                            'Quero contratar um vendedor',
+                            'Estamos planejando um evento corporativo',
+                            'Quero investir em marketing digital',
+                            'Preciso de um empréstimo para capital de giro',
                           ].map((ex, i) => (
                             <button
                               key={i}
@@ -1073,7 +1092,7 @@ Pedido do usuário: ${userMsg}`;
                         <div className="bg-white border border-slate-100 rounded-2xl rounded-bl-md px-4 py-3">
                           <div className="flex items-center gap-2">
                             <Loader2 className="w-3.5 h-3.5 text-violet-500 animate-spin" />
-                            <span className="text-xs text-slate-400">Analisando e criando cenários...</span>
+                            <span className="text-xs text-slate-400">Pensando...</span>
                           </div>
                         </div>
                       </div>

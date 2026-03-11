@@ -130,6 +130,8 @@ export const scenariosApi = {
   update: (id: string, data: Record<string, any>) => api.put(`/scenarios/${id}`, data),
   toggle: (id: string) => api.patch(`/scenarios/${id}/toggle`),
   delete: (id: string) => api.delete(`/scenarios/${id}`),
+  aiChat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>) =>
+    api.post('/scenarios/ai-chat', { message, history }),
 };
 
 // ============================================

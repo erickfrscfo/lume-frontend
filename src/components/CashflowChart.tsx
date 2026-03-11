@@ -115,10 +115,18 @@ function ChartTooltip({ active, payload }: any) {
         <div className="border-t border-slate-100 pt-2 mt-1">
           <TooltipLineRow color={COLORS.baselineLine} label="Saldo acumulado" value={formatCurrency(d.baselineBal)} bold />
         </div>
-        {d.hasScenario && d.rawScTotal > 0 && (
+        {d.hasScenario && (d.rawScRevenue > 0 || d.rawScExpense > 0) && (
           <>
-            <TooltipRow color={COLORS.scenario} label="Meu Cenário" value={formatCurrency(d.rawScTotal)} />
-            <TooltipLineRow color={COLORS.scenarioLine} label="Saldo Cenário" value={formatCurrency(d.scenarioBal)} dashed purple />
+            {d.rawScRevenue > 0 && (
+              <TooltipRow color={COLORS.scenario} label="Cenário: Entrada" value={`+${formatCurrency(d.rawScRevenue)}`} />
+            )}
+            {d.rawScExpense > 0 && (
+              <TooltipRow color={COLORS.scenario} label="Cenário: Saída" value={`-${formatCurrency(d.rawScExpense)}`} />
+            )}
+            <div className="text-xs text-slate-500 pl-5">
+              Líquido cenário: <span className={d.rawScTotal >= 0 ? 'text-emerald-600' : 'text-red-600'}>{formatCurrency(d.rawScTotal)}</span>
+            </div>
+            <TooltipLineRow color={COLORS.scenarioLine} label="Saldo com Cenário" value={formatCurrency(d.scenarioBal)} dashed purple />
           </>
         )}
       </div>
@@ -201,20 +209,23 @@ export default function CashflowChart({
       baseBal += pt.net;
 
       // Scenario adjustments
-      let scTotal = 0;
+      // monthlyRevenue é positivo (entrada), monthlyExpense é negativo (saída)
+      let scRevenue = 0; // receita do cenário (positivo)
+      let scExpense = 0; // despesa do cenário (negativo)
       activeScenarios.forEach(s => {
         const adj = s.adjustments;
         const start = adj.startMonth || pt.month;
         const end = adj.endMonth || '9999-12';
         if (pt.month >= start && pt.month <= end) {
-          if (adj.monthlyRevenue) scTotal += adj.monthlyRevenue;
-          if (adj.monthlyExpense) scTotal += adj.monthlyExpense;
+          if (adj.monthlyRevenue) scRevenue += Math.abs(adj.monthlyRevenue);
+          if (adj.monthlyExpense) scExpense += adj.monthlyExpense < 0 ? adj.monthlyExpense : -Math.abs(adj.monthlyExpense);
         }
         if (pt.month === start) {
-          if (adj.oneTimeRevenue) scTotal += adj.oneTimeRevenue;
-          if (adj.oneTimeExpense) scTotal += adj.oneTimeExpense;
+          if (adj.oneTimeRevenue) scRevenue += Math.abs(adj.oneTimeRevenue);
+          if (adj.oneTimeExpense) scExpense += adj.oneTimeExpense < 0 ? adj.oneTimeExpense : -Math.abs(adj.oneTimeExpense);
         }
       });
+      const scTotal = scRevenue + scExpense; // líquido do cenário
 
       scBal += pt.net + scTotal;
 
@@ -225,14 +236,18 @@ export default function CashflowChart({
         // Bars: income positive (above zero), expense negative (below zero)
         income: incomeVal,
         expense: expenseVal,
-        scenarioBar: hasScenario ? Math.abs(scTotal) : 0,
+        // Cenário: receita como barra positiva (acima), despesa como barra negativa (abaixo)
+        scenarioIncome: hasScenario && scRevenue > 0 ? scRevenue : 0,
+        scenarioExpense: hasScenario && scExpense < 0 ? scExpense : 0,
         // Lines
         baselineBal: baseBal,
         scenarioBal: hasScenario ? scBal : undefined,
         // Tooltip raw values
         rawIncome: pt.income,
         rawExpense: pt.expense,
-        rawScTotal: Math.abs(scTotal),
+        rawScRevenue: scRevenue,
+        rawScExpense: Math.abs(scExpense),
+        rawScTotal: scTotal,
         hasScenario,
       };
     });
@@ -377,9 +392,18 @@ export default function CashflowChart({
             ))}
           </Bar>
 
-          {/* 3. Scenario — purple (only when active) */}
+          {/* 3. Scenario Income — purple bars above zero (receita do cenário) */}
           {hasScenario && (
-            <Bar yAxisId="bars" dataKey="scenarioBar" maxBarSize={40} radius={[4, 4, 0, 0]}>
+            <Bar yAxisId="bars" dataKey="scenarioIncome" maxBarSize={40} radius={[4, 4, 0, 0]}>
+              {chartData.map((e, i) => (
+                <Cell key={i} fill={e.isForecast ? COLORS.scenarioForecast : COLORS.scenario} />
+              ))}
+            </Bar>
+          )}
+
+          {/* 4. Scenario Expense — purple bars below zero (despesa do cenário) */}
+          {hasScenario && (
+            <Bar yAxisId="bars" dataKey="scenarioExpense" maxBarSize={40} radius={[0, 0, 4, 4]}>
               {chartData.map((e, i) => (
                 <Cell key={i} fill={e.isForecast ? COLORS.scenarioForecast : COLORS.scenario} />
               ))}
