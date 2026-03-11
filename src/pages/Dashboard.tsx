@@ -24,8 +24,10 @@ interface MetricValue {
 
 interface PendingInfo {
   totalExpenses: number;
-  totalIncome: number;
+  totalIncomes: number;
+  totalIncome?: number; // alias
   count: number;
+  overdueCount?: number;
 }
 
 interface DashboardData {
@@ -578,6 +580,9 @@ Pedido do usuário: ${userMsg}`;
   // growth removido — indicador Fluxo de Caixa Líquido retirado da tela
   const transactionCount = dashData?.transactionCount || 0;
   const pendingInfo = dashData?.pending;
+  // Normalizar: backend retorna totalIncomes, garantir compatibilidade
+  const pendingTotalIncome = pendingInfo?.totalIncomes || pendingInfo?.totalIncome || 0;
+  const pendingTotalExpenses = pendingInfo?.totalExpenses || 0;
 
   // Calcular margens do último mês com dados a partir da DRE
   const { margemBruta, margemLiquida } = useMemo(() => {
@@ -733,21 +738,21 @@ Pedido do usuário: ${userMsg}`;
                   {pendingInfo.count} transação{pendingInfo.count !== 1 ? 'ões' : ''} pendente{pendingInfo.count !== 1 ? 's' : ''} (não contabilizada{pendingInfo.count !== 1 ? 's' : ''} no caixa)
                 </p>
                 <div className="flex gap-4 mt-1">
-                  {pendingInfo.totalIncome > 0 && (
+                  {pendingTotalIncome > 0 && (
                     <span className="text-xs text-emerald-700">
                       <TrendingUp className="w-3 h-3 inline mr-1" />
-                      A receber: {formatCurrency(pendingInfo.totalIncome)}
+                      A receber: {formatCurrency(pendingTotalIncome)}
                     </span>
                   )}
-                  {pendingInfo.totalExpenses > 0 && (
+                  {pendingTotalExpenses > 0 && (
                     <span className="text-xs text-red-700">
                       <TrendingDown className="w-3 h-3 inline mr-1" />
-                      A pagar: {formatCurrency(pendingInfo.totalExpenses)}
+                      A pagar: {formatCurrency(pendingTotalExpenses)}
                     </span>
                   )}
                 </div>
               </div>
-              <a href="/dashboards" className="text-xs font-medium text-orange-700 hover:text-orange-900 border border-orange-300 bg-white rounded-md px-3 py-1.5 transition-colors">
+              <a href="/dashboards?tab=transactions&status=PENDING" className="text-xs font-medium text-orange-700 hover:text-orange-900 border border-orange-300 bg-white rounded-md px-3 py-1.5 transition-colors">
                 Ver transações
               </a>
             </div>

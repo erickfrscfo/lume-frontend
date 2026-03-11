@@ -637,6 +637,19 @@ export default function Dashboards() {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
+  // Ler query params da URL para deep-linking (ex: ?tab=transactions&status=PENDING)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const status = params.get('status');
+    if (tab === 'transactions') {
+      setActiveView('transactions');
+    }
+    if (status === 'PENDING' || status === 'COMPLETED' || status === 'OVERDUE') {
+      setTxStatusFilter(status);
+    }
+  }, []);
+
   useEffect(() => {
     loadData();
     fetchPendingCostClassifications();

@@ -681,20 +681,6 @@ export default function InsercaoDados() {
               />
             </div>
 
-            {/* Categoria */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-              <select
-                value={transaction.categoryId}
-                onChange={(e) => setTransaction(t => ({ ...t, categoryId: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Selecione...</option>
-                {filteredCategories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.code} - {cat.name}</option>
-                ))}
-              </select>
-            </div>
           </div>
 
           {/* Campos avançados (colapsáveis) */}
@@ -1132,27 +1118,7 @@ export default function InsercaoDados() {
                   />
                 </div>
 
-                {/* Categoria */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-                  <select
-                    value={ocrEditData.categoria}
-                    onChange={(e) => setOcrEditData((d: any) => ({ ...d, categoria: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  >
-                    <option value="">Selecione...</option>
-                    {categories
-                      .filter(cat => cat.type === ocrEditData.tipo_transacao || cat.type === 'BOTH')
-                      .map(cat => (
-                        <option key={cat.id} value={cat.name}>{cat.code} - {cat.name}</option>
-                      ))}
-                  </select>
-                  {ocrResult.extractedData.categoria_sugerida && !ocrEditData.categoria && (
-                    <p className="text-xs text-amber-600 mt-1">
-                      Sugestão da IA: {ocrResult.extractedData.categoria_sugerida}
-                    </p>
-                  )}
-                </div>
+
 
                 {/* Tipo de Custo (apenas para despesas) */}
                 {ocrEditData.tipo_transacao === 'EXPENSE' && (
