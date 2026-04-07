@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ShieldCheck, UserPlus, Building2, CheckCircle2, XCircle, Copy, ArrowLeft, Loader2 } from 'lucide-react';
+import { ShieldCheck, UserPlus, Building2, CheckCircle2, XCircle, Copy, ArrowLeft, Loader2, BookOpen } from 'lucide-react';
 
 export default function AdminOnboarding() {
   const [searchParams] = useSearchParams();
@@ -14,14 +14,18 @@ export default function AdminOnboarding() {
   const [success, setSuccess] = useState<any>(null);
   const [copied, setCopied] = useState('');
 
-  // Form fields
+  // Form fields — Usuário
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  // Form fields — Empresa
   const [companyName, setCompanyName] = useState('');
   const [cnpj, setCnpj] = useState('');
   const [sector, setSector] = useState('');
+  const [activity, setActivity] = useState('');
+  const [useCustomChart, setUseCustomChart] = useState(false);
 
   // Valida a chave contra o backend ao carregar a página
   useEffect(() => {
@@ -80,6 +84,8 @@ export default function AdminOnboarding() {
             name: companyName,
             cnpj: cnpj.replace(/\D/g, ''),
             sector,
+            activity: activity.trim() || undefined,
+            useCustomChart,
           },
         }),
       });
@@ -99,6 +105,8 @@ export default function AdminOnboarding() {
       setCompanyName('');
       setCnpj('');
       setSector('');
+      setActivity('');
+      setUseCustomChart(false);
     } catch (err: any) {
       setError(err.message || 'Erro ao criar conta. Tente novamente.');
     } finally {
@@ -199,6 +207,15 @@ export default function AdminOnboarding() {
                   {copied === 'code' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
+
+              {success.company?.useCustomChart && (
+                <div className="pt-2 border-t border-green-200">
+                  <p className="text-xs text-amber-700 font-medium">
+                    Plano de contas customizado ativado. O plano padrão do setor foi copiado como base.
+                    Acesse a tela de configuração para personalizar.
+                  </p>
+                </div>
+              )}
 
               <div className="pt-2 border-t border-green-200">
                 <p className="text-xs text-slate-500">
@@ -332,6 +349,55 @@ export default function AdminOnboarding() {
                     <option value="ECOMMERCE">E-commerce</option>
                     <option value="MISTO">Misto / Outros</option>
                   </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Atividade Principal</label>
+                <input
+                  type="text"
+                  value={activity}
+                  onChange={(e) => setActivity(e.target.value)}
+                  placeholder="Ex: consultoria tributária, varejo de moda, desenvolvimento de software..."
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <p className="text-xs text-slate-400 mt-1">Opcional — ajuda a IA a classificar transações com mais precisão</p>
+              </div>
+
+              <hr className="border-slate-200" />
+
+              {/* Seção: Plano de Contas */}
+              <div className="flex items-center gap-2 mb-1">
+                <BookOpen className="w-4 h-4 text-blue-600" />
+                <p className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Plano de Contas</p>
+              </div>
+
+              <div className="bg-slate-50 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={useCustomChart}
+                          onChange={(e) => setUseCustomChart(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-10 h-5 bg-slate-300 rounded-full peer-checked:bg-blue-600 transition-colors"></div>
+                        <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm peer-checked:translate-x-5 transition-transform"></div>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-slate-700">
+                          Usar plano de contas customizado
+                        </span>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {useCustomChart
+                            ? 'O plano padrão do setor será copiado como base. Você poderá personalizar depois na tela de configuração.'
+                            : 'Será usado o plano de contas padrão do setor selecionado.'}
+                        </p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
