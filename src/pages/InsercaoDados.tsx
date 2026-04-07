@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Upload, FileText, Plus, AlertCircle, CheckCircle, Loader2,
   Calendar, DollarSign, ChevronDown, ChevronUp, Building2,
@@ -97,7 +97,6 @@ export default function InsercaoDados() {
   // Shared state
   const [categories, setCategories] = useState<Category[]>([]);
   const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
-
   // ============================================
   // LOAD DATA
   // ============================================
@@ -538,25 +537,79 @@ export default function InsercaoDados() {
             </div>
           )}
 
-          {/* Upload Result */}
+          {/* Upload Result — CORRIGIDO: usa campos corretos do backend */}
           {uploadResult && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className={`border rounded-lg p-4 ${
+              uploadResult.errors > 0 && uploadResult.imported > 0
+                ? 'bg-amber-50 border-amber-200'
+                : uploadResult.imported > 0
+                ? 'bg-green-50 border-green-200'
+                : 'bg-red-50 border-red-200'
+            }`}>
               <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-green-800">Upload processado com sucesso!</p>
-                  <p className="text-sm text-green-700 mt-1">
-                    {uploadResult.transactionsCreated || uploadResult.count || 0} transações importadas
+                {uploadResult.imported > 0 ? (
+                  <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                    uploadResult.errors > 0 ? 'text-amber-500' : 'text-green-500'
+                  }`} />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1">
+                  <p className={`font-medium ${
+                    uploadResult.imported > 0 ? (uploadResult.errors > 0 ? 'text-amber-800' : 'text-green-800') : 'text-red-800'
+                  }`}>
+                    {uploadResult.imported > 0 && uploadResult.errors > 0
+                      ? 'Upload processado com alertas'
+                      : uploadResult.imported > 0
+                      ? 'Upload processado com sucesso!'
+                      : 'Falha no processamento do upload'}
                   </p>
-                  {uploadResult.errors?.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-sm font-medium text-amber-700">
-                        {uploadResult.errors.length} linhas com erro:
+
+                  {/* Contadores principais */}
+                  <div className="mt-2 flex flex-wrap gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium text-gray-700">Total de linhas:</span>
+                      <span className="text-sm font-bold text-gray-900">{uploadResult.totalRows || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                      <span className="text-sm font-medium text-green-700">Importadas:</span>
+                      <span className="text-sm font-bold text-green-900">{uploadResult.imported || 0}</span>
+                    </div>
+                    {(uploadResult.errors > 0) && (
+                      <div className="flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                        <span className="text-sm font-medium text-red-700">Com erro:</span>
+                        <span className="text-sm font-bold text-red-900">{uploadResult.errors}</span>
+                      </div>
+                    )}
+                    {uploadResult.newCounterparties > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                        <span className="text-sm font-medium text-blue-700">Novas contrapartes:</span>
+                        <span className="text-sm font-bold text-blue-900">{uploadResult.newCounterparties}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Detalhes de erros */}
+                  {uploadResult.errorDetails && uploadResult.errorDetails.length > 0 && (
+                    <div className="mt-3 bg-white/60 rounded-lg p-3">
+                      <p className="text-sm font-medium text-amber-700 mb-1">
+                        Detalhes dos erros:
                       </p>
-                      <ul className="text-sm text-amber-600 mt-1 list-disc list-inside">
-                        {uploadResult.errors.slice(0, 5).map((err: any, i: number) => (
-                          <li key={i}>Linha {err.line}: {err.message}</li>
+                      <ul className="text-sm text-amber-600 space-y-0.5">
+                        {uploadResult.errorDetails.slice(0, 5).map((err: any, i: number) => (
+                          <li key={i} className="flex items-start gap-1">
+                            <span className="text-amber-400 mt-0.5">-</span>
+                            <span>Linha {err.line}: {err.message}</span>
+                          </li>
                         ))}
+                        {uploadResult.errorDetails.length > 5 && (
+                          <li className="text-amber-500 italic">
+                            ...e mais {uploadResult.errorDetails.length - 5} erro(s)
+                          </li>
+                        )}
                       </ul>
                     </div>
                   )}
@@ -565,7 +618,7 @@ export default function InsercaoDados() {
             </div>
           )}
 
-          {/* Upload History */}
+          {/* Upload History — CORRIGIDO: usa rowCount em vez de totalRows */}
           {uploadHistory.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-lg">
               <div className="px-4 py-3 border-b border-gray-200">
@@ -579,17 +632,22 @@ export default function InsercaoDados() {
                       <div>
                         <p className="text-sm font-medium text-gray-900">{upload.filename}</p>
                         <p className="text-xs text-gray-500">
-                          {new Date(upload.createdAt).toLocaleDateString('pt-BR')} - {upload.totalRows || 0} transações
+                          {new Date(upload.createdAt).toLocaleDateString('pt-BR')} — {upload.rowCount || 0} transações importadas
+                          {upload.errorCount > 0 && (
+                            <span className="text-amber-600"> ({upload.errorCount} erro{upload.errorCount > 1 ? 's' : ''})</span>
+                          )}
                         </p>
                       </div>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full ${
                       upload.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                      upload.status === 'ERROR' ? 'bg-red-100 text-red-700' :
+                      upload.status === 'PARTIAL' ? 'bg-amber-100 text-amber-700' :
+                      upload.status === 'FAILED' || upload.status === 'ERROR' ? 'bg-red-100 text-red-700' :
                       'bg-yellow-100 text-yellow-700'
                     }`}>
                       {upload.status === 'COMPLETED' ? 'Concluído' :
-                       upload.status === 'ERROR' ? 'Erro' : 'Processando'}
+                       upload.status === 'PARTIAL' ? 'Parcial' :
+                       upload.status === 'FAILED' || upload.status === 'ERROR' ? 'Erro' : 'Processando'}
                     </span>
                   </div>
                 ))}
@@ -1117,8 +1175,6 @@ export default function InsercaoDados() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   />
                 </div>
-
-
 
                 {/* Tipo de Custo (apenas para despesas) */}
                 {ocrEditData.tipo_transacao === 'EXPENSE' && (
