@@ -49,15 +49,19 @@ interface Transaction {
   notes?: string;
 }
 
+// ============================================
+// FRENTE 4: DRERow SEM ebitda
+// Estrutura: Receita - CMV - Impostos = Lucro Bruto - Opex = Resultado Líquido
+// ============================================
 interface DRERow {
   month: string;
   monthKey: string;
   revenue: number;
   cogs: number;
-  grossProfit: number;
+  taxes: number;        // NOVO: Impostos e Tributos (8.x) separados
+  grossProfit: number;  // = revenue - cogs - taxes
   opex: number;
-  ebitda: number;
-  netIncome: number;
+  netIncome: number;    // = grossProfit - opex
 }
 
 /** Mapa de código de categoria -> nome legível */
@@ -90,6 +94,7 @@ const CATEGORY_NAMES: Record<string, string> = {
   '4.3': 'Benefícios',
   '4.4': 'Prestadores PJ',
   '4.5': 'Treinamento e Capacitação',
+  '4.6': 'INSS Patronal',  // FRENTE 4/5: movido de 8.6 para 4.6
   // Despesas Operacionais
   '5.0': 'Despesas Operacionais',
   '5.1': 'Aluguel e Condomínio',
@@ -121,7 +126,6 @@ const CATEGORY_NAMES: Record<string, string> = {
   '8.3': 'ICMS',
   '8.4': 'PIS/COFINS',
   '8.5': 'IRPJ/CSLL',
-  '8.6': 'INSS Patronal',
   '8.7': 'Outros Tributos',
   // Investimentos
   '9.0': 'Investimentos (Capex)',
@@ -132,20 +136,16 @@ const CATEGORY_NAMES: Record<string, string> = {
   '9.5': 'Obras e Reformas',
 };
 
-/** Grupos do DRE com seus prefixos de categoria */
-const DRE_GROUPS = {
-  revenue: { label: 'Receita Bruta', prefixes: ['1', '2'], type: 'income' as const },
-  cogs: { label: '(-) Custos de Mercadoria Vendida (CMV)', prefixes: ['3'], type: 'expense' as const },
-  opex: { label: '(-) Despesas Operacionais', prefixes: ['4', '5', '6', '7', '8'], type: 'expense' as const },
-} as const;
-
+// ============================================
+// FRENTE 4: OPEX_SUBGROUPS sem grupo 8 (impostos separados)
+// ============================================
 /** Subgrupos dentro de Despesas Operacionais */
 const OPEX_SUBGROUPS: Record<string, string> = {
   '4': 'Despesas com Pessoal',
   '5': 'Despesas Operacionais',
   '6': 'Despesas Comerciais',
   '7': 'Despesas Financeiras',
-  '8': 'Impostos e Tributos',
+  // '8' REMOVIDO — Impostos agora são linha separada no DRE (antes do Lucro Bruto)
 };
 
 interface CategoryDetail {
@@ -182,31 +182,39 @@ function formatMonthLabel(monthKey: string): string {
 // ============================================
 
 /**
- * Transforma os dados brutos do backend em DRERow[] consolidados.
- * Backend retorna: { "2025-01": { "1.0": 5000, "3.1": 2000, "5.2": 800 }, ... }
+ * FRENTE 4: Transforma os dados brutos do backend em DRERow[] consolidados.
+ * NOVA ESTRUTURA:
+ *   Receita Bruta
+ *   (-) Custos Diretos (CMV/CSP/CPV)
+ *   (-) Impostos e Tributos (8.x)
+ *   = Lucro Bruto
+ *   (-) Despesas Operacionais (4.x + 5.x + 6.x + 7.x + 9.x, exceto directCost)
+ *   = Resultado Líquido
  */
-function transformDREData(rawData: any, profile?: { directCostCodes: string[]; excludeFromDirectCost?: string[] } | null): { rows: DRERow[]; monthKeys: string[] } {
+function transformDREData(rawData: any, profile?: { directCostCodes: string[]; excludeFromDirectCost?: string[]; taxCodes?: string[] } | null): { rows: DRERow[]; monthKeys: string[] } {
   if (!rawData || typeof rawData !== 'object' || Array.isArray(rawData)) {
     return { rows: [], monthKeys: [] };
   }
 
   const monthKeys = Object.keys(rawData).sort();
 
+  // Usar perfil dinâmico para determinar custos diretos e impostos
+  const directCostCodes = profile?.directCostCodes || ['3.'];
+  const excludeCodes = profile?.excludeFromDirectCost || [];
+  const taxCodes = profile?.taxCodes || ['8.'];
+
   const rows = monthKeys.map((monthKey) => {
     const cats = rawData[monthKey] || {};
     let revenue = 0;
     let cogs = 0;
+    let taxes = 0;
     let opex = 0;
-
-    // Usar perfil dinâmico para determinar custos diretos
-    const directCostCodes = profile?.directCostCodes || ['3.'];
-    const excludeCodes = profile?.excludeFromDirectCost || [];
 
     Object.entries(cats).forEach(([code, amount]) => {
       const val = Number(amount) || 0;
       const prefix = code.split('.')[0];
 
-      // Receita
+      // Receita (1.x + 2.x)
       if (prefix === '1' || prefix === '2') {
         revenue += val;
         return;
@@ -216,25 +224,33 @@ function transformDREData(rawData: any, profile?: { directCostCodes: string[]; e
       const isDirectCost = directCostCodes.some(p => code.startsWith(p));
       const isExcluded = excludeCodes.some(p => code.startsWith(p));
 
+      // Verificar se é imposto/tributo
+      const isTax = taxCodes.some(p => code.startsWith(p));
+
       if (isDirectCost && !isExcluded) {
         cogs += val;
-      } else if (['3', '4', '5', '6', '7', '8'].includes(prefix)) {
+      } else if (isTax) {
+        taxes += val;  // FRENTE 4: Impostos separados
+      } else if (['3', '4', '5', '6', '7', '9'].includes(prefix)) {
         opex += val;
       }
     });
 
-    const grossProfit = revenue - cogs;
-    const ebitda = grossProfit - opex;
+    // FRENTE 4: Nova fórmula
+    // Lucro Bruto = Receita - CMV - Impostos
+    const grossProfit = revenue - cogs - taxes;
+    // Resultado Líquido = Lucro Bruto - Opex
+    const netIncome = grossProfit - opex;
 
     return {
       month: formatMonthLabel(monthKey),
       monthKey,
       revenue,
       cogs,
+      taxes,
       grossProfit,
       opex,
-      ebitda,
-      netIncome: ebitda,
+      netIncome,
     };
   });
 
@@ -325,15 +341,54 @@ function extractDirectCostDetails(
 }
 
 /**
- * Extrai subgrupos de OPEX (Pessoal, Operacional, Comercial, etc.)
- * com suas categorias filhas.
- * EXCLUI categorias que já foram contadas como custo direto no perfil DRE.
+ * FRENTE 4: Extrai categorias de impostos/tributos (8.x) para detalhamento.
+ */
+function extractTaxDetails(
+  rawData: any,
+  monthKeys: string[],
+  taxCodes: string[] = ['8.']
+): CategoryDetail[] {
+  if (!rawData || monthKeys.length === 0) return [];
+
+  const categoryMap: Record<string, CategoryDetail> = {};
+
+  monthKeys.forEach((monthKey) => {
+    const cats = rawData[monthKey] || {};
+    Object.entries(cats).forEach(([code, amount]) => {
+      const isTax = taxCodes.some(p => code.startsWith(p));
+      if (!isTax) return;
+
+      const val = Number(amount) || 0;
+      if (val === 0) return;
+
+      if (!categoryMap[code]) {
+        categoryMap[code] = {
+          code,
+          name: CATEGORY_NAMES[code] || `Categoria ${code}`,
+          values: {},
+          totalValue: 0,
+        };
+      }
+      categoryMap[code].values[monthKey] = (categoryMap[code].values[monthKey] || 0) + val;
+      categoryMap[code].totalValue += val;
+    });
+  });
+
+  return Object.values(categoryMap)
+    .filter(c => c.totalValue !== 0)
+    .sort((a, b) => a.code.localeCompare(b.code));
+}
+
+/**
+ * FRENTE 4: Extrai subgrupos de OPEX (Pessoal, Operacional, Comercial, Financeiro)
+ * EXCLUI categorias que já foram contadas como custo direto OU como imposto.
  */
 function extractOpexSubgroups(
   rawData: any,
   monthKeys: string[],
   directCostCodes: string[] = [],
-  excludeFromDirectCost: string[] = []
+  excludeFromDirectCost: string[] = [],
+  taxCodes: string[] = ['8.']
 ): SubgroupDetail[] {
   if (!rawData || monthKeys.length === 0) return [];
 
@@ -344,13 +399,18 @@ function extractOpexSubgroups(
     return directCostCodes.some(p => code.startsWith(p));
   };
 
+  // Função helper: verifica se é imposto
+  const isTaxCode = (code: string): boolean => {
+    return taxCodes.some(p => code.startsWith(p));
+  };
+
   const subgroups: SubgroupDetail[] = [];
 
   Object.entries(OPEX_SUBGROUPS).forEach(([prefix, name]) => {
     // Extrair todas as categorias do prefixo
     const allCategories = extractCategoryDetails(rawData, monthKeys, [prefix]);
-    // Filtrar: remover categorias que já são custo direto
-    const categories = allCategories.filter(cat => !isDirectCostCode(cat.code));
+    // Filtrar: remover categorias que já são custo direto OU imposto
+    const categories = allCategories.filter(cat => !isDirectCostCode(cat.code) && !isTaxCode(cat.code));
     if (categories.length === 0) return;
 
     const totals: Record<string, number> = {};
@@ -372,6 +432,7 @@ function extractOpexSubgroups(
 
 // ============================================
 // DRE TABLE COMPONENT
+// FRENTE 4: Nova estrutura sem EBITDA, com Impostos separados
 // ============================================
 function DRETable({
   dreData,
@@ -382,7 +443,7 @@ function DRETable({
   dreData: DRERow[];
   rawDreData: any;
   monthKeys: string[];
-  dreProfile?: { sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[] } | null;
+  dreProfile?: { sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[]; taxCodes?: string[] } | null;
 }) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [expandedSubgroups, setExpandedSubgroups] = useState<Set<string>>(new Set());
@@ -427,16 +488,26 @@ function DRETable({
     return dreProfile?.excludeFromDirectCost || [];
   }, [dreProfile]);
 
+  const taxCodes = useMemo(() => {
+    return dreProfile?.taxCodes || ['8.'];
+  }, [dreProfile]);
+
   // Usar extractDirectCostDetails para filtrar por código preciso (startsWith)
   const cogsDetails = useMemo(
     () => extractDirectCostDetails(rawDreData, monthKeys, directCostCodes, excludeFromDirectCost),
     [rawDreData, monthKeys, directCostCodes, excludeFromDirectCost]
   );
 
-  // OPEX: excluir categorias que já são custo direto
+  // FRENTE 4: Detalhes de impostos
+  const taxDetails = useMemo(
+    () => extractTaxDetails(rawDreData, monthKeys, taxCodes),
+    [rawDreData, monthKeys, taxCodes]
+  );
+
+  // OPEX: excluir categorias que já são custo direto OU imposto
   const opexSubgroups = useMemo(
-    () => extractOpexSubgroups(rawDreData, monthKeys, directCostCodes, excludeFromDirectCost),
-    [rawDreData, monthKeys, directCostCodes, excludeFromDirectCost]
+    () => extractOpexSubgroups(rawDreData, monthKeys, directCostCodes, excludeFromDirectCost, taxCodes),
+    [rawDreData, monthKeys, directCostCodes, excludeFromDirectCost, taxCodes]
   );
 
   if (dreData.length === 0) {
@@ -453,6 +524,7 @@ function DRETable({
     switch (section) {
       case 'revenue': return revenueDetails.length > 0;
       case 'cogs': return cogsDetails.length > 0;
+      case 'taxes': return taxDetails.length > 0;
       case 'opex': return opexSubgroups.length > 0;
       default: return false;
     }
@@ -532,9 +604,24 @@ function DRETable({
           </tr>
           {expandedSections.has('cogs') && renderCategoryRows(cogsDetails)}
 
+          {/* ========== IMPOSTOS E TRIBUTOS (FRENTE 4: nova linha) ========== */}
+          <tr
+            className={`border-b border-slate-100 ${hasDetails('taxes') ? 'cursor-pointer hover:bg-amber-50/50' : ''}`}
+            onClick={() => hasDetails('taxes') && toggleSection('taxes')}
+          >
+            <td className="py-3 px-6 text-slate-700">
+              {renderExpandIcon('taxes')}
+              (-) Impostos e Tributos
+            </td>
+            {dreData.map((d, i) => (
+              <td key={i} className="py-3 px-4 text-right text-amber-600">{formatCurrency(-d.taxes)}</td>
+            ))}
+          </tr>
+          {expandedSections.has('taxes') && renderCategoryRows(taxDetails)}
+
           {/* ========== LUCRO BRUTO ========== */}
           <tr className="border-b border-slate-200 bg-blue-50 font-semibold">
-            <td className="py-3 px-6 text-slate-900">= Lucro Bruto</td>
+            <td className="py-3 px-6 text-slate-900">= {dreProfile?.grossProfitLabel || 'Lucro Bruto'}</td>
             {dreData.map((d, i) => (
               <td key={i} className={`py-3 px-4 text-right font-semibold ${d.grossProfit >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
                 {formatCurrency(d.grossProfit)}
@@ -556,7 +643,7 @@ function DRETable({
             ))}
           </tr>
 
-          {/* Subgrupos de OPEX (Pessoal, Operacional, Comercial, etc.) */}
+          {/* Subgrupos de OPEX (Pessoal, Operacional, Comercial, Financeiro) */}
           {expandedSections.has('opex') && opexSubgroups.map((sg) => (
             <React.Fragment key={sg.prefix}>
               {/* Linha do subgrupo (ex: Despesas com Pessoal) */}
@@ -579,17 +666,7 @@ function DRETable({
             </React.Fragment>
           ))}
 
-          {/* ========== EBITDA ========== */}
-          <tr className="border-b border-slate-200 bg-blue-50 font-semibold">
-            <td className="py-3 px-6 text-slate-900">= EBITDA</td>
-            {dreData.map((d, i) => (
-              <td key={i} className={`py-3 px-4 text-right font-semibold ${d.ebitda >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
-                {formatCurrency(d.ebitda)}
-              </td>
-            ))}
-          </tr>
-
-          {/* ========== RESULTADO LÍQUIDO ========== */}
+          {/* ========== RESULTADO LÍQUIDO (FRENTE 4: sem EBITDA) ========== */}
           <tr className="bg-emerald-50 font-bold">
             <td className="py-3 px-6 text-slate-900">= Resultado Líquido</td>
             {dreData.map((d, i) => (
@@ -614,7 +691,7 @@ export default function Dashboards() {
   const [dreData, setDreData] = useState<DRERow[]>([]);
   const [rawDreData, setRawDreData] = useState<any>(null);
   const [monthKeys, setMonthKeys] = useState<string[]>([]);
-  const [dreProfile, setDreProfile] = useState<{ sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[] } | null>(null);
+  const [dreProfile, setDreProfile] = useState<{ sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[]; taxCodes?: string[] } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeView, setActiveView] = useState<'overview' | 'dre' | 'transactions'>('overview');
   const [txPage, setTxPage] = useState(1);
@@ -870,13 +947,12 @@ export default function Dashboards() {
     return [];
   }, [dreData]);
 
-  // Dados para gráfico de Margens (percentuais)
+  // FRENTE 4: Dados para gráfico de Margens (sem EBITDA)
   const marginsChartData = useMemo(() => {
     return dreData.map(d => ({
       month: d.month,
       margemBruta: d.revenue > 0 ? ((d.grossProfit / d.revenue) * 100) : 0,
-      ebitda: d.revenue > 0 ? ((d.ebitda / d.revenue) * 100) : 0,
-      lucroLiquido: d.revenue > 0 ? ((d.netIncome / d.revenue) * 100) : 0,
+      margemLiquida: d.revenue > 0 ? ((d.netIncome / d.revenue) * 100) : 0,
     }));
   }, [dreData]);
 
@@ -1013,15 +1089,15 @@ export default function Dashboards() {
             )}
           </div>
 
-          {/* Margins */}
+          {/* FRENTE 4: Margins — sem EBITDA, apenas Margem Bruta e Margem Líquida */}
           <div className="bg-white rounded-xl border border-slate-200 p-6 lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-slate-900">Margens</h3>
               {marginsChartData.length > 0 && (
                 <ExplainButton
                   metric="Margens Financeiras"
-                  value={`Margem Bruta: ${marginsChartData[marginsChartData.length - 1]?.margemBruta.toFixed(1)}% | EBITDA: ${marginsChartData[marginsChartData.length - 1]?.ebitda.toFixed(1)}%`}
-                  context={`Evolução das margens:\n${marginsChartData.map(d => `${d.month}: Margem Bruta ${d.margemBruta.toFixed(1)}% | EBITDA ${d.ebitda.toFixed(1)}% | Lucro Líquido ${d.lucroLiquido.toFixed(1)}%`).join('\n')}`}
+                  value={`Margem Bruta: ${marginsChartData[marginsChartData.length - 1]?.margemBruta.toFixed(1)}% | Margem Líquida: ${marginsChartData[marginsChartData.length - 1]?.margemLiquida.toFixed(1)}%`}
+                  context={`Evolução das margens:\n${marginsChartData.map(d => `${d.month}: Margem Bruta ${d.margemBruta.toFixed(1)}% | Margem Líquida ${d.margemLiquida.toFixed(1)}%`).join('\n')}`}
                   variant="icon"
                 />
               )}
@@ -1037,8 +1113,7 @@ export default function Dashboards() {
                     contentStyle={{ borderRadius: 8, fontSize: 12 }}
                   />
                   <Line type="monotone" dataKey="margemBruta" stroke="#10b981" strokeWidth={2} name="Margem Bruta" dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="ebitda" stroke="#3b82f6" strokeWidth={2} name="EBITDA %" dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="lucroLiquido" stroke="#8b5cf6" strokeWidth={2} name="Lucro Líquido %" dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="margemLiquida" stroke="#8b5cf6" strokeWidth={2} name="Margem Líquida" dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -1063,8 +1138,8 @@ export default function Dashboards() {
             {dreData.length > 0 && (
               <ExplainButton
                 metric="DRE Completo"
-                value={`Receita: ${formatCurrency(dreData[dreData.length - 1]?.revenue || 0)} | EBITDA: ${formatCurrency(dreData[dreData.length - 1]?.ebitda || 0)} | Lucro: ${formatCurrency(dreData[dreData.length - 1]?.netIncome || 0)}`}
-                context={`DRE mês a mês:\n${dreData.map(d => `${d.month}: Receita ${formatCurrency(d.revenue)} | Custos ${formatCurrency(d.cogs)} | Lucro Bruto ${formatCurrency(d.grossProfit)} | Opex ${formatCurrency(d.opex)} | EBITDA ${formatCurrency(d.ebitda)} | Lucro Líquido ${formatCurrency(d.netIncome)}`).join('\n')}`}
+                value={`Receita: ${formatCurrency(dreData[dreData.length - 1]?.revenue || 0)} | Lucro Bruto: ${formatCurrency(dreData[dreData.length - 1]?.grossProfit || 0)} | Resultado: ${formatCurrency(dreData[dreData.length - 1]?.netIncome || 0)}`}
+                context={`DRE mês a mês:\n${dreData.map(d => `${d.month}: Receita ${formatCurrency(d.revenue)} | Custos ${formatCurrency(d.cogs)} | Impostos ${formatCurrency(d.taxes)} | Lucro Bruto ${formatCurrency(d.grossProfit)} | Opex ${formatCurrency(d.opex)} | Resultado ${formatCurrency(d.netIncome)}`).join('\n')}`}
                 variant="small"
               />
             )}
@@ -1125,7 +1200,7 @@ export default function Dashboards() {
               <select
                 value={txCategoryFilter}
                 onChange={(e) => { setTxCategoryFilter(e.target.value); }}
-                className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white max-w-[200px]"
+                className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 <option value="all">Todas Categorias</option>
                 {uniqueCategories.map(cat => (
