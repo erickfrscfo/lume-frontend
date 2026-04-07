@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { financialApi, scenariosApi, aiApi, alertsApi, forecastApi } from '@/lib/api';
 import { formatCurrency, getMonthLabel } from '@/lib/utils';
 import MetricCard from '@/components/MetricCard';
@@ -417,7 +417,6 @@ function ScenarioDetail({ scenario, onBack, onToggle, onDelete }: ScenarioDetail
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-slate-900">{item.name}</span>
-                  {scenario.isNew && <span className="text-xs text-emerald-500 font-medium">New</span>}
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => onToggle(scenario.id)} className="flex-shrink-0">
@@ -465,6 +464,8 @@ function ScenarioDetail({ scenario, onBack, onToggle, onDelete }: ScenarioDetail
 export default function Dashboard() {
   const [dashData, setDashData] = useState<DashboardData | null>(null);
   const [cashflowRaw, setCashflowRaw] = useState<CashflowRaw[]>([]);
+  // CORREÇÃO: State para armazenar o saldo inicial (transações anteriores ao período do gráfico)
+  const [cashflowInitialBalance, setCashflowInitialBalance] = useState<number>(0);
   const [dreRaw, setDreRaw] = useState<DREData>({});
   const [dreProfile, setDreProfile] = useState<{ sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[] } | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -528,7 +529,13 @@ export default function Dashboard() {
         financialApi.dre(3),
       ]);
       if (metricsRes.status === 'fulfilled') setDashData(metricsRes.value.data.data || metricsRes.value.data);
-      if (cashflowRes.status === 'fulfilled') setCashflowRaw(cashflowRes.value.data.data || cashflowRes.value.data || []);
+      // CORREÇÃO: Capturar o initialBalance retornado pelo backend
+      if (cashflowRes.status === 'fulfilled') {
+        const cfResponse = cashflowRes.value.data;
+        setCashflowRaw(cfResponse.data || cfResponse || []);
+        // O backend agora retorna initialBalance (saldo das transações anteriores ao período)
+        setCashflowInitialBalance(cfResponse.initialBalance || 0);
+      }
       if (scenariosRes.status === 'fulfilled') setScenarios(scenariosRes.value.data.data || scenariosRes.value.data || []);
       if (dreRes.status === 'fulfilled') {
         const dreResponse = dreRes.value.data;
@@ -823,7 +830,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        <CashflowChart data={cashflowData} scenarios={chartScenarios} initialBalance={0} forecastStartMonth={forecastStartMonth} />
+        {/* CORREÇÃO: Passar cashflowInitialBalance em vez de 0 fixo */}
+        <CashflowChart data={cashflowData} scenarios={chartScenarios} initialBalance={cashflowInitialBalance} forecastStartMonth={forecastStartMonth} />
 
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <div className="flex items-center justify-between mb-4">
@@ -1105,7 +1113,7 @@ export default function Dashboard() {
 
                     {chatMessages.map((msg, i) => (
                       <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 ${
+                        <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                           msg.role === 'user'
                             ? 'bg-slate-100 text-slate-800 rounded-br-md'
                             : 'bg-white text-slate-700 border border-slate-100 rounded-bl-md'
