@@ -706,7 +706,8 @@ export default function Dashboard() {
 
 
   // Build 12-month sliding window: 5 past + current + 6 forecast
-  const cashflowData: CashflowDataPoint[] = useMemo(() => {
+  // CORREÇÃO: Retorna também o saldo dos meses descartados pelo slice(-6)
+  const { cashflowData, discardedBalance } = useMemo(() => {
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
@@ -715,6 +716,11 @@ export default function Dashboard() {
       .map(c => ({ month: c.month, income: c.income || 0, expense: Math.abs(c.expense || c.expenses || 0), net: c.net || 0 }))
       .filter(c => c.month <= currentMonth)
       .sort((a, b) => a.month.localeCompare(b.month));
+
+    // Meses que serão descartados pelo slice(-6)
+    // Acumular o saldo líquido deles para não perder no gráfico
+    const discardedMonths = historical.length > 6 ? historical.slice(0, -6) : [];
+    const discardedBal = discardedMonths.reduce((sum, m) => sum + m.net, 0);
 
     // Take last 6 months of historical (5 past + current)
     const recentHistorical = historical.slice(-6);
@@ -730,8 +736,14 @@ export default function Dashboard() {
         net: f.net || 0,
       }));
 
-    return [...recentHistorical, ...forecastPoints];
+    return {
+      cashflowData: [...recentHistorical, ...forecastPoints] as CashflowDataPoint[],
+      discardedBalance: discardedBal,
+    };
   }, [cashflowRaw, forecastData]);
+
+  // Saldo inicial efetivo = initialBalance do backend + saldo dos meses descartados pelo slice(-6)
+  const effectiveInitialBalance = cashflowInitialBalance + discardedBalance;
 
   const chartScenarios: ChartScenario[] = useMemo(() => {
     return scenarios.map(s => ({ id: s.id, name: s.name, type: s.type, isActive: s.isActive, adjustments: s.adjustments || {} }));
@@ -830,8 +842,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* CORREÇÃO: Passar cashflowInitialBalance em vez de 0 fixo */}
-        <CashflowChart data={cashflowData} scenarios={chartScenarios} initialBalance={cashflowInitialBalance} forecastStartMonth={forecastStartMonth} />
+        {/* CORREÇÃO: Passar effectiveInitialBalance (backend + meses descartados pelo slice) */}
+        <CashflowChart data={cashflowData} scenarios={chartScenarios} initialBalance={effectiveInitialBalance} forecastStartMonth={forecastStartMonth} />
 
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <div className="flex items-center justify-between mb-4">
