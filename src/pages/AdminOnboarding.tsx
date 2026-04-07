@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ShieldCheck, UserPlus, Building2, CheckCircle2, XCircle, Copy, ArrowLeft } from 'lucide-react';
-
-const ADMIN_KEY = import.meta.env.VITE_ADMIN_ONBOARDING_KEY || '';
+import { ShieldCheck, UserPlus, Building2, CheckCircle2, XCircle, Copy, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function AdminOnboarding() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const keyFromUrl = searchParams.get('key') || '';
 
+  const [isValidating, setIsValidating] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,12 +23,38 @@ export default function AdminOnboarding() {
   const [cnpj, setCnpj] = useState('');
   const [sector, setSector] = useState('');
 
+  // Valida a chave contra o backend ao carregar a página
   useEffect(() => {
-    // Valida a chave da URL contra a variável de ambiente
-    // Se VITE_ADMIN_ONBOARDING_KEY não estiver definida, a chave é validada no backend
-    if (keyFromUrl) {
-      setIsAuthorized(true); // A validação real é feita no backend via X-Admin-Key
+    if (!keyFromUrl) {
+      setIsValidating(false);
+      setIsAuthorized(false);
+      return;
     }
+
+    const validateKey = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${API_URL}/api/auth/validate-admin-key`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Key': keyFromUrl,
+          },
+        });
+
+        if (res.ok) {
+          setIsAuthorized(true);
+        } else {
+          setIsAuthorized(false);
+        }
+      } catch {
+        setIsAuthorized(false);
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    validateKey();
   }, [keyFromUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,15 +112,30 @@ export default function AdminOnboarding() {
     setTimeout(() => setCopied(''), 2000);
   };
 
-  // Tela de acesso negado
-  if (!keyFromUrl) {
+  // Tela de carregamento enquanto valida a chave
+  if (isValidating) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 max-w-md w-full text-center">
+          <Loader2 className="w-12 h-12 text-blue-500 mx-auto mb-4 animate-spin" />
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Validando acesso...</h2>
+          <p className="text-slate-500 text-sm">Verificando chave de administrador.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Tela de acesso negado (sem chave ou chave inválida)
+  if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-red-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl border border-red-200 p-8 max-w-md w-full text-center">
           <XCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-slate-900 mb-2">Acesso Negado</h2>
           <p className="text-slate-500 text-sm mb-6">
-            Esta página requer uma chave de administrador válida na URL.
+            {!keyFromUrl
+              ? 'Esta página requer uma chave de administrador válida na URL.'
+              : 'A chave de administrador fornecida é inválida.'}
           </p>
           <button
             onClick={() => navigate('/login')}
