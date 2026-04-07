@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Login from '@/pages/Login';
+import AdminOnboarding from '@/pages/AdminOnboarding';
 import Dashboard from '@/pages/Dashboard';
 import ReuniaoExecutiva from '@/pages/ReuniaoExecutiva';
 import InsercaoDados from '@/pages/InsercaoDados';
@@ -15,10 +16,16 @@ export default function App() {
 
   return (
     <Routes>
+      {/* Rota pública: apenas login */}
       <Route
         path="/login"
         element={isAuthenticated && !isLoading ? <Navigate to="/" replace /> : <Login />}
       />
+
+      {/* Rota admin: onboarding protegido por chave na URL */}
+      <Route path="/admin/onboarding" element={<AdminOnboarding />} />
+
+      {/* Rotas protegidas: requerem autenticação */}
       <Route
         element={
           <ProtectedRoute>
@@ -33,6 +40,8 @@ export default function App() {
         <Route path="/alertas" element={<AlertasIA />} />
         <Route path="/integracoes" element={<Integracoes />} />
       </Route>
+
+      {/* Catch-all: redireciona para home */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
