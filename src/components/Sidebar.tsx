@@ -69,8 +69,8 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div className="p-4 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310419663028517609/ohPrPQZYetPFzdUv.png" alt="Esnorke" className="w-8 h-8 object-contain flex-shrink-0" />
-        {!collapsed && <span className="text-lg font-bold text-white">Esnorke</span>}
+        <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310419663028517609/ohPrPQZYetPFzdUv.png" alt="Esnork" className="w-8 h-8 object-contain flex-shrink-0" />
+        {!collapsed && <span className="text-lg font-bold text-white">Esnork</span>}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="ml-auto transition-colors"

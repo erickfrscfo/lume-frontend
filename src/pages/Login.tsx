@@ -114,8 +114,8 @@ export default function Login() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
-            <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310419663028517609/XPFoJFImxtWcuuDR.png" alt="Esnorke" className="w-10 h-10 object-contain" />
-            <span className="text-2xl font-bold text-slate-900">Esnorke</span>
+            <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310419663028517609/XPFoJFImxtWcuuDR.png" alt="Esnork" className="w-10 h-10 object-contain" />
+            <span className="text-2xl font-bold text-slate-900">Esnork</span>
           </div>
           <p className="text-slate-500">Seu CFO com Inteligência Artificial</p>
         </div>

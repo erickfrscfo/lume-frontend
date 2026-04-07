@@ -395,7 +395,7 @@ export default function AdminOnboarding() {
             <ShieldCheck className="w-8 h-8 text-blue-600" />
             <span className="text-2xl font-bold text-slate-900">Admin Onboarding</span>
           </div>
-          <p className="text-slate-500">Criar nova empresa e usuário no Esnorke</p>
+          <p className="text-slate-500">Criar nova empresa e usuário no Esnork</p>
         </div>
 
         {/* Success Card */}

@@ -112,7 +112,7 @@ export function AlertsBanner({ onViewAll }: { onViewAll: () => void }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="font-semibold text-gray-900 text-sm">
-              Esnorke identificou {summary.total} {summary.total === 1 ? 'insight' : 'insights'}
+              Esnork identificou {summary.total} {summary.total === 1 ? 'insight' : 'insights'}
             </h3>
             {summary.totalSavings > 0 && (
               <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
@@ -287,7 +287,7 @@ export function AlertsPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () 
               <CheckCircle2 className="w-12 h-12 mb-3 text-green-400" />
               <p className="font-medium text-gray-600">Tudo em ordem!</p>
               <p className="text-sm text-center mt-1">
-                Nenhum alerta no momento. O Esnorke está monitorando seus dados continuamente.
+                Nenhum alerta no momento. O Esnork está monitorando seus dados continuamente.
               </p>
             </div>
           ) : (
@@ -367,7 +367,7 @@ export function AlertsPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () 
         {/* Footer */}
         <div className="p-4 border-t bg-gray-50 text-center">
           <p className="text-xs text-gray-400">
-            Alertas gerados automaticamente pelo Esnorke • Atualizado a cada upload
+            Alertas gerados automaticamente pelo Esnork • Atualizado a cada upload
           </p>
         </div>
       </div>
