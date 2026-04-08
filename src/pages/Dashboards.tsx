@@ -861,10 +861,12 @@ export default function Dashboards() {
       // Data: DD/MM/AAAA | Valor: negativo, formato R$xx,xx
       const rows = allTransactions.map((tx) => {
         // Formatar data DD/MM/AAAA
-        const d = new Date(tx.date + (tx.date.includes('T') ? '' : 'T00:00:00'));
-        const dd = String(d.getDate()).padStart(2, '0');
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const yyyy = d.getFullYear();
+        // CORREÇÃO TIMEZONE: Usar getUTC* para evitar que datas UTC meia-noite
+        // (ex: 2026-04-01T00:00:00.000Z) sejam exibidas como dia anterior em UTC-3.
+        const d = new Date(tx.date + (tx.date.includes('T') ? '' : 'T00:00:00Z'));
+        const dd = String(d.getUTCDate()).padStart(2, '0');
+        const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const yyyy = d.getUTCFullYear();
         const dataFormatada = `${dd}/${mm}/${yyyy}`;
 
         // Tipo legível
@@ -1248,7 +1250,7 @@ export default function Dashboards() {
               />
               {appliedStartDate && appliedEndDate && (
                 <span className="text-xs text-slate-400">
-                  Transações de {new Date(appliedStartDate + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(appliedEndDate + 'T00:00:00').toLocaleDateString('pt-BR')}
+                  Transações de {new Date(appliedStartDate + 'T12:00:00').toLocaleDateString('pt-BR')} até {new Date(appliedEndDate + 'T12:00:00').toLocaleDateString('pt-BR')}
                 </span>
               )}
 
