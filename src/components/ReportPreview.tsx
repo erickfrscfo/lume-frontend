@@ -2,28 +2,23 @@
  * ReportPreview.tsx
  *
  * Componente de visualização do relatório gerado com dados reais.
- * Exibe cabeçalho da empresa, indicadores calculados e botão de exportar PDF.
+ * Exibe cabeçalho da empresa, indicadores calculados e botão de imprimir.
  *
  * Caminho no projeto: client/src/components/ReportPreview.tsx
  *
  * UI: Tailwind CSS puro + Lucide icons (sem shadcn/ui)
- * API: usa api default de @/lib/api (axios com baseURL do Railway)
  */
 
-import { useState, useRef, useCallback } from "react";
 import {
   ArrowLeft,
-  FileDown,
   Building2,
   Calendar,
   TrendingUp,
   TrendingDown,
   Minus,
   AlertCircle,
-  Loader2,
   Printer,
 } from "lucide-react";
-import api from "@/lib/api";
 
 // ============================================
 // TIPOS
@@ -92,40 +87,10 @@ function formatCNPJ(cnpj: string): string {
 }
 
 // ============================================
-// TOAST SIMPLES
-// ============================================
-
-function useSimpleToast() {
-  const [msg, setMsg] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const show = useCallback((text: string, type: "success" | "error" | "info" = "info") => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setMsg({ text, type });
-    timerRef.current = setTimeout(() => setMsg(null), 3500);
-  }, []);
-
-  const ToastEl = msg ? (
-    <div
-      className={`fixed top-5 right-5 z-[9999] px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-white transition-all ${
-        msg.type === "success" ? "bg-emerald-600" : msg.type === "error" ? "bg-red-600" : "bg-blue-600"
-      }`}
-    >
-      {msg.text}
-    </div>
-  ) : null;
-
-  return { show, ToastEl };
-}
-
-// ============================================
 // COMPONENTE
 // ============================================
 
 export default function ReportPreview({ report, onBack }: ReportPreviewProps) {
-  const toast = useSimpleToast();
-  const [downloading, setDownloading] = useState(false);
-
   const generatedDate = new Date(report.generatedAt);
   const formattedDate = generatedDate.toLocaleDateString("pt-BR", {
     day: "2-digit",
@@ -138,42 +103,13 @@ export default function ReportPreview({ report, onBack }: ReportPreviewProps) {
   const availableCount = report.indicators.filter((i) => i.available).length;
   const unavailableCount = report.indicators.filter((i) => !i.available).length;
 
-  // ── Download PDF ──
-  const downloadPDF = async () => {
-    try {
-      setDownloading(true);
-
-      const res = await api.get(`/report/pdf?month=${report.referenceMonth}`, {
-        responseType: "blob",
-      });
-
-      const blob = new Blob([res.data], { type: "application/pdf" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Relatorio-Financeiro-${report.company.name.replace(/\s+/g, "-")}-${report.referenceMonth}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.show("PDF baixado com sucesso!", "success");
-    } catch {
-      toast.show("A exportação em PDF será disponibilizada em breve.", "info");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
   // ── Imprimir ──
   const handlePrint = () => {
     window.print();
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      {toast.ToastEl}
-
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6 print:px-0 print:py-0 print:space-y-0">
       {/* ── Barra de ações (não imprime) ── */}
       <div className="flex items-center justify-between print:hidden">
         <button
@@ -191,34 +127,13 @@ export default function ReportPreview({ report, onBack }: ReportPreviewProps) {
             <Printer className="h-4 w-4" />
             Imprimir
           </button>
-          <button
-            onClick={downloadPDF}
-            disabled={downloading}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors shadow-sm ${
-              downloading
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-blue-600 text-white hover:bg-blue-700"
-            }`}
-          >
-            {downloading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Gerando PDF...
-              </>
-            ) : (
-              <>
-                <FileDown className="h-4 w-4" />
-                Baixar PDF
-              </>
-            )}
-          </button>
         </div>
       </div>
 
       {/* ══════════════════════════════════════════════
           RELATÓRIO (área imprimível)
           ══════════════════════════════════════════════ */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm print:shadow-none print:border-none">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm print:shadow-none print:border-none print:rounded-none">
         {/* ── Cabeçalho ── */}
         <div className="p-8 border-b border-gray-200">
           <div className="flex items-start justify-between">
@@ -247,7 +162,7 @@ export default function ReportPreview({ report, onBack }: ReportPreviewProps) {
         </div>
 
         {/* ── Resumo ── */}
-        <div className="px-8 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between text-sm">
+        <div className="px-8 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between text-sm print:bg-white">
           <span className="text-gray-500">
             {availableCount} indicador(es) calculado(s)
             {unavailableCount > 0 && ` · ${unavailableCount} indisponível(is)`}
@@ -295,7 +210,7 @@ export default function ReportPreview({ report, onBack }: ReportPreviewProps) {
         </div>
 
         {/* ── Rodapé ── */}
-        <div className="px-8 py-4 border-t border-gray-200 bg-gray-50 text-center">
+        <div className="px-8 py-4 border-t border-gray-200 bg-gray-50 text-center print:bg-white">
           <p className="text-xs text-gray-400">
             Relatório gerado automaticamente pela plataforma Esnork · {report.monthLabel}
           </p>
