@@ -10,6 +10,7 @@ import InsercaoDados from '@/pages/InsercaoDados';
 import Dashboards from '@/pages/Dashboards';
 import Integracoes from '@/pages/Integracoes';
 import AlertasIA from '@/pages/AlertasIA';
+import ReportBuilder from '@/pages/ReportBuilder';
 
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/dados" element={<InsercaoDados />} />
         <Route path="/dashboards" element={<Dashboards />} />
         <Route path="/alertas" element={<AlertasIA />} />
+        <Route path="/relatorio" element={<ReportBuilder />} />
         <Route path="/integracoes" element={<Integracoes />} />
       </Route>
 

@@ -9,6 +9,7 @@ import {
   LogOut,
   Sparkles,
   Bell,
+  FileBarChart2,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ const navItems = [
   { path: '/dados', icon: Upload, label: 'Inserção de Dados' },
   { path: '/dashboards', icon: BarChart3, label: 'Dashboards' },
   { path: '/alertas', icon: Bell, label: 'Alertas Financeiros' },
+  { path: '/relatorio', icon: FileBarChart2, label: 'Monte seu Relatório' },
   { path: '/integracoes', icon: Link2, label: 'Integrações' },
 ];
 
