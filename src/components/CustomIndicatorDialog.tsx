@@ -8,6 +8,7 @@
  * Caminho no projeto: client/src/components/CustomIndicatorDialog.tsx
  *
  * UI: Tailwind CSS puro + Lucide icons (sem shadcn/ui)
+ * API: usa reportApi de @/lib/api (axios com baseURL do Railway)
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -18,6 +19,7 @@ import {
   RefreshCw,
   AlertTriangle,
 } from "lucide-react";
+import { reportApi } from "@/lib/api";
 
 // ============================================
 // TIPOS
@@ -117,21 +119,11 @@ export default function CustomIndicatorDialog({
       setSuggestion(null);
       setNotViableMessage(null);
 
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/report/indicators/custom", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ description: description.trim() }),
+      const res = await reportApi.createCustomIndicator({
+        description: description.trim(),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Erro ao processar");
-      }
+      const data = res.data;
 
       if (data.success === false) {
         // IA disse que não é viável
@@ -143,7 +135,8 @@ export default function CustomIndicatorDialog({
         resetState();
       }
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "Não foi possível criar o indicador. Tente novamente.";
+      const axiosErr = error as { response?: { data?: { error?: string } } };
+      const msg = axiosErr.response?.data?.error || "Não foi possível criar o indicador. Tente novamente.";
       toast.show(msg, "error");
     } finally {
       setLoading(false);
@@ -181,7 +174,7 @@ export default function CustomIndicatorDialog({
         className="fixed inset-0 z-[9998] bg-black/50 flex items-center justify-center p-4"
       >
         {/* Modal */}
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg relative animate-in fade-in zoom-in-95">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg relative">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div>

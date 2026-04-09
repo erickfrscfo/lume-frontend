@@ -8,6 +8,7 @@
  * Caminho no projeto: client/src/pages/ReportBuilder.tsx
  *
  * UI: Tailwind CSS puro + Lucide icons (sem shadcn/ui)
+ * API: usa reportApi de @/lib/api (axios com baseURL do Railway)
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -22,11 +23,10 @@ import {
   LayoutList,
   Loader2,
   Check,
-  Save,
-  Trash2,
   Calendar,
   FileBarChart2,
 } from "lucide-react";
+import { reportApi } from "@/lib/api";
 import ReportPreview from "@/components/ReportPreview";
 import CustomIndicatorDialog from "@/components/CustomIndicatorDialog";
 
@@ -143,7 +143,7 @@ function useSimpleToast() {
 
   const ToastEl = msg ? (
     <div
-      className={`fixed top-5 right-5 z-[9999] px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-white transition-all animate-in fade-in slide-in-from-top-2 ${
+      className={`fixed top-5 right-5 z-[9999] px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-white transition-all ${
         msg.type === "success" ? "bg-emerald-600" : msg.type === "error" ? "bg-red-600" : "bg-blue-600"
       }`}
     >
@@ -207,17 +207,14 @@ export default function ReportBuilder() {
     async function loadData() {
       try {
         setLoading(true);
-        const token = localStorage.getItem("token");
-        const headers: Record<string, string> = {};
-        if (token) headers.Authorization = `Bearer ${token}`;
 
         const [indRes, tplRes] = await Promise.all([
-          fetch("/api/report/indicators", { headers }),
-          fetch("/api/report/template", { headers }),
+          reportApi.getIndicators(),
+          reportApi.getTemplate(),
         ]);
 
-        const indData = await indRes.json();
-        const tplData = await tplRes.json();
+        const indData = indRes.data;
+        const tplData = tplRes.data;
 
         setCategories(indData.categories || []);
         setCustomIndicators(indData.customIndicators || []);
@@ -239,17 +236,9 @@ export default function ReportBuilder() {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = setTimeout(async () => {
         try {
-          const token = localStorage.getItem("token");
-          await fetch("/api/report/template", {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              indicators,
-              referenceMonth: month || referenceMonth,
-            }),
+          await reportApi.saveTemplate({
+            indicators,
+            referenceMonth: month || referenceMonth,
           });
         } catch (error) {
           console.error("Erro ao salvar template:", error);
@@ -323,29 +312,18 @@ export default function ReportBuilder() {
 
     try {
       setGenerating(true);
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/report/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          month: referenceMonth,
-          indicatorIds: selectedIndicators.map((si) => si.id),
-        }),
+
+      const res = await reportApi.generate({
+        month: referenceMonth,
+        indicatorIds: selectedIndicators.map((si) => si.id),
       });
 
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Erro ao gerar relatório");
-      }
-
-      const report: GeneratedReport = await res.json();
+      const report: GeneratedReport = res.data;
       setGeneratedReport(report);
       setShowPreview(true);
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "Tente novamente.";
+      const axiosErr = error as { response?: { data?: { error?: string } } };
+      const msg = axiosErr.response?.data?.error || "Tente novamente.";
       toast.show(`Erro ao gerar relatório: ${msg}`, "error");
     } finally {
       setGenerating(false);
@@ -541,31 +519,29 @@ export default function ReportBuilder() {
 
               {/* ── Botões de ação ── */}
               {selectedIndicators.length > 0 && (
-                <>
-                  <div className="border-t border-gray-100 mt-5 pt-4 flex items-center justify-end gap-3">
-                    <button
-                      onClick={generateReport}
-                      disabled={generating}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                        generating
-                          ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                          : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
-                      }`}
-                    >
-                      {generating ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Gerando...
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="h-4 w-4" />
-                          Visualizar Relatório
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </>
+                <div className="border-t border-gray-100 mt-5 pt-4 flex items-center justify-end gap-3">
+                  <button
+                    onClick={generateReport}
+                    disabled={generating}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                      generating
+                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                    }`}
+                  >
+                    {generating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Gerando...
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-4 w-4" />
+                        Visualizar Relatório
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -600,29 +576,26 @@ export default function ReportBuilder() {
                 </button>
                 {categoryDropdownOpen && (
                   <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
-                    {categories.map((cat) => {
-                      const style = getCatStyle(cat.key);
-                      return (
-                        <button
-                          key={cat.key}
-                          onClick={() => {
-                            setSelectedCategory(cat.key);
-                            setCategoryDropdownOpen(false);
-                          }}
-                          className={`w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${
-                            selectedCategory === cat.key ? "bg-blue-50" : ""
-                          }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${style.bg.replace("50", "400")}`} />
-                            {cat.label}
-                          </span>
-                          <span className="text-xs text-gray-400">
-                            ({cat.indicators.length})
-                          </span>
-                        </button>
-                      );
-                    })}
+                    {categories.map((cat) => (
+                      <button
+                        key={cat.key}
+                        onClick={() => {
+                          setSelectedCategory(cat.key);
+                          setCategoryDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${
+                          selectedCategory === cat.key ? "bg-blue-50" : ""
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${getCatStyle(cat.key).text.replace("text-", "bg-")}`} />
+                          {cat.label}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          ({cat.indicators.length})
+                        </span>
+                      </button>
+                    ))}
                     {customIndicators.length > 0 && (
                       <button
                         onClick={() => {

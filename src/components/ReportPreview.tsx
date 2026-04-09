@@ -7,9 +7,10 @@
  * Caminho no projeto: client/src/components/ReportPreview.tsx
  *
  * UI: Tailwind CSS puro + Lucide icons (sem shadcn/ui)
+ * API: usa api default de @/lib/api (axios com baseURL do Railway)
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   ArrowLeft,
   FileDown,
@@ -22,6 +23,7 @@ import {
   Loader2,
   Printer,
 } from "lucide-react";
+import api from "@/lib/api";
 
 // ============================================
 // TIPOS
@@ -140,14 +142,12 @@ export default function ReportPreview({ report, onBack }: ReportPreviewProps) {
   const downloadPDF = async () => {
     try {
       setDownloading(true);
-      const token = localStorage.getItem("token");
-      const res = await fetch(`/api/report/pdf?month=${report.referenceMonth}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+
+      const res = await api.get(`/report/pdf?month=${report.referenceMonth}`, {
+        responseType: "blob",
       });
 
-      if (!res.ok) throw new Error("Erro ao gerar PDF");
-
-      const blob = await res.blob();
+      const blob = new Blob([res.data], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -159,7 +159,7 @@ export default function ReportPreview({ report, onBack }: ReportPreviewProps) {
 
       toast.show("PDF baixado com sucesso!", "success");
     } catch {
-      toast.show("A exportação em PDF será disponibilizada em breve.", "error");
+      toast.show("A exportação em PDF será disponibilizada em breve.", "info");
     } finally {
       setDownloading(false);
     }

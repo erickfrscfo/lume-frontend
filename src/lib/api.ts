@@ -279,4 +279,36 @@ export const healthApi = {
   check: () => api.get('/health'),
 };
 
+// ============================================
+// REPORT (Relatório Dinâmico)
+// ============================================
+// ADICIONAR ao final do arquivo client/src/lib/api.ts, ANTES da linha "export default api;"
+
+export const reportApi = {
+  /** Lista indicadores disponíveis (padrão + custom), agrupados por categoria */
+  getIndicators: () => api.get('/report/indicators'),
+
+  /** Retorna o template salvo da empresa (indicadores selecionados + ordem) */
+  getTemplate: () => api.get('/report/template'),
+
+  /** Salva/atualiza o template (indicadores selecionados + ordem) */
+  saveTemplate: (data: {
+    indicators: Array<{ id: string; type: string; order: number }>;
+    name?: string;
+    referenceMonth?: string;
+  }) => api.put('/report/template', data),
+
+  /** Calcula os valores reais dos indicadores selecionados */
+  generate: (data: { month: string; indicatorIds: string[] }) =>
+    api.post('/report/generate', data),
+
+  /** Cria indicador customizado via IA */
+  createCustomIndicator: (data: { description: string }) =>
+    api.post('/report/indicators/custom', data),
+
+  /** Remove indicador customizado (soft delete) */
+  deleteCustomIndicator: (id: string) =>
+    api.delete(`/report/indicators/custom/${id}`),
+};
+
 export default api;
