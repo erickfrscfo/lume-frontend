@@ -52,10 +52,9 @@ const emptyTransaction = {
   amount: '',
   description: '',
   categoryId: '',
-  counterpartyId: '',
+  counterpartyName: '',
   documentNumber: '',
   dueDate: '',
-  bankReference: '',
   notes: '',
 };
 
@@ -109,7 +108,7 @@ export default function InsercaoDados() {
   const loadCategories = async () => {
     try {
       const res = await api.get('/categories');
-      if (res.data?.success) {
+      if (res.data?.data) {
         setCategories(res.data.data || []);
       }
     } catch (err) {
@@ -190,8 +189,9 @@ export default function InsercaoDados() {
   // MANUAL TRANSACTION HANDLERS
   // ============================================
   const handleSaveTransaction = async () => {
-    if (!transaction.description || !transaction.amount || !transaction.date) {
-      setSaveResult({ success: false, message: 'Preencha os campos obrigatórios: Descrição, Valor e Data.' });
+    // CORREÇÃO: Vencimento agora é obrigatório
+    if (!transaction.description || !transaction.amount || !transaction.date || !transaction.dueDate) {
+      setSaveResult({ success: false, message: 'Preencha os campos obrigatórios: Descrição, Valor, Data e Vencimento.' });
       return;
     }
 
@@ -202,19 +202,19 @@ export default function InsercaoDados() {
       const payload: any = {
         description: transaction.description,
         amount: parseFloat(transaction.amount),
-        tipo_transacao: transaction.type,
+        type: transaction.type,  // CORREÇÃO: backend espera "type", não "tipo_transacao"
         date: transaction.date,
-        source: 'manual',
+        dueDate: transaction.dueDate,
       };
 
       if (transaction.categoryId) payload.categoryId = transaction.categoryId;
-      if (transaction.counterpartyId) payload.counterpartyId = transaction.counterpartyId;
+      // CORREÇÃO: Envia counterpartyName (texto livre) em vez de counterpartyId
+      if (transaction.counterpartyName) payload.counterpartyName = transaction.counterpartyName;
       if (transaction.documentNumber) payload.documentNumber = transaction.documentNumber;
-      if (transaction.dueDate) payload.dueDate = transaction.dueDate;
-      if (transaction.bankReference) payload.bankReference = transaction.bankReference;
       if (transaction.notes) payload.notes = transaction.notes;
 
-      const res = await api.post('/transactions', payload);
+      // CORREÇÃO: Endpoint correto é /financial/transactions (não /transactions)
+      const res = await api.post('/financial/transactions', payload);
 
       if (res.data?.success) {
         setSaveResult({ success: true, message: 'Transação salva com sucesso!' });
@@ -429,41 +429,59 @@ export default function InsercaoDados() {
       {/* ============================================ */}
       {activeTab === 'csv' && (
         <div className="space-y-4">
-          {/* Template Download */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FileText className="w-5 h-5 text-blue-600" />
-              <div>
+          {/* Template Download — DESCRITIVO MELHORADO */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <FileText className="w-5 h-5 text-blue-600" />
                 <p className="font-medium text-blue-900">Template CSV</p>
-                <p className="text-sm text-blue-700">
-                  Colunas: data, descricao, valor, tipo, contraparte, vencimento, data_pagamento, data_recebimento, documento, observacao
-                </p>
+              </div>
+              <button
+                onClick={() => {
+                  const header = 'data;descricao;valor;tipo;contraparte;vencimento;data_pagamento;data_recebimento;documento;observacao';
+                  const examples = [
+                    '01/01/2025;Pagamento Aluguel;-3500.00;SAIDA;Imobiliaria Central;05/01/2025;03/01/2025;;NF-001;Aluguel sede',
+                    '05/01/2025;Recebimento Cliente;12000.00;ENTRADA;ABC Tecnologia;10/01/2025;;08/01/2025;NF-100;Projeto web',
+                    '10/01/2025;Compra Material;-850.50;SAIDA;Papelaria Express;15/01/2025;;;NF-050;Material escritorio',
+                    '15/01/2025;Salarios;-25000.00;SAIDA;;20/01/2025;18/01/2025;;FOL-001;Folha janeiro',
+                    '20/01/2025;Servico Consultoria;8500.00;ENTRADA;Cliente XYZ;25/01/2025;;;NF-200;Consultoria mensal',
+                  ];
+                  const csvContent = '\uFEFF' + header + '\n' + examples.join('\n') + '\n';
+                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'template_transacoes_v3.csv';
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Baixar Template
+              </button>
+            </div>
+            <div className="text-sm text-blue-800 space-y-1.5">
+              <p className="font-medium">Colunas aceitas (separadas por <code className="bg-blue-100 px-1 rounded">;</code> ou <code className="bg-blue-100 px-1 rounded">,</code>):</p>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-1 text-xs">
+                <span className="bg-blue-100 px-2 py-1 rounded font-medium">data *</span>
+                <span className="bg-blue-100 px-2 py-1 rounded font-medium">descricao *</span>
+                <span className="bg-blue-100 px-2 py-1 rounded font-medium">valor *</span>
+                <span className="bg-blue-100 px-2 py-1 rounded">tipo</span>
+                <span className="bg-blue-100 px-2 py-1 rounded">contraparte</span>
+                <span className="bg-blue-100 px-2 py-1 rounded">vencimento</span>
+                <span className="bg-blue-100 px-2 py-1 rounded">data_pagamento</span>
+                <span className="bg-blue-100 px-2 py-1 rounded">data_recebimento</span>
+                <span className="bg-blue-100 px-2 py-1 rounded">documento</span>
+                <span className="bg-blue-100 px-2 py-1 rounded">observacao</span>
+              </div>
+              <div className="mt-2 text-xs text-blue-700 space-y-0.5">
+                <p><strong>tipo:</strong> ENTRADA ou SAIDA (se omitido, valores negativos = SAIDA, positivos = ENTRADA)</p>
+                <p><strong>data_pagamento / data_recebimento:</strong> define se a transação entra como <em>Concluída</em>. Se vazio = <em>Pendente</em></p>
+                <p><strong>Categoria:</strong> classificada automaticamente pela IA após o upload (não precisa preencher)</p>
+                <p><strong>Datas:</strong> formato DD/MM/AAAA</p>
               </div>
             </div>
-            <button
-              onClick={() => {
-                const header = 'data;descricao;valor;tipo;contraparte;vencimento;data_pagamento;data_recebimento;documento;observacao';
-                const examples = [
-                  '01/01/2025;Pagamento Aluguel;-3500.00;SAIDA;Imobiliaria Central;05/01/2025;03/01/2025;;NF-001;Aluguel sede',
-                  '05/01/2025;Recebimento Cliente;12000.00;ENTRADA;ABC Tecnologia;10/01/2025;;08/01/2025;NF-100;Projeto web',
-                  '10/01/2025;Compra Material;-850.50;SAIDA;Papelaria Express;15/01/2025;;;NF-050;Material escritorio',
-                  '15/01/2025;Salarios;-25000.00;SAIDA;;20/01/2025;18/01/2025;;FOL-001;Folha janeiro',
-                  '20/01/2025;Servico Consultoria;8500.00;ENTRADA;Cliente XYZ;25/01/2025;;;NF-200;Consultoria mensal',
-                ];
-                const csvContent = '\uFEFF' + header + '\n' + examples.join('\n') + '\n';
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'template_transacoes_v3.csv';
-                a.click();
-                window.URL.revokeObjectURL(url);
-              }}
-              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Baixar
-            </button>
           </div>
 
           {/* Drop Zone */}
@@ -537,7 +555,7 @@ export default function InsercaoDados() {
             </div>
           )}
 
-          {/* Upload Result — CORRIGIDO: usa campos corretos do backend */}
+          {/* Upload Result */}
           {uploadResult && (
             <div className={`border rounded-lg p-4 ${
               uploadResult.errors > 0 && uploadResult.imported > 0
@@ -602,7 +620,7 @@ export default function InsercaoDados() {
                         {uploadResult.errorDetails.slice(0, 5).map((err: any, i: number) => (
                           <li key={i} className="flex items-start gap-1">
                             <span className="text-amber-400 mt-0.5">-</span>
-                            <span>Linha {err.line}: {err.message}</span>
+                            <span>Linha {err.line}: {err.message || err.error}</span>
                           </li>
                         ))}
                         {uploadResult.errorDetails.length > 5 && (
@@ -618,7 +636,7 @@ export default function InsercaoDados() {
             </div>
           )}
 
-          {/* Upload History — CORRIGIDO: usa rowCount em vez de totalRows */}
+          {/* Upload History */}
           {uploadHistory.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-lg">
               <div className="px-4 py-3 border-b border-gray-200">
@@ -630,7 +648,7 @@ export default function InsercaoDados() {
                     <div className="flex items-center gap-3">
                       <FileText className="w-4 h-4 text-gray-400" />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{upload.filename}</p>
+                        <p className="text-sm font-medium text-gray-900">{upload.originalName || upload.filename}</p>
                         <p className="text-xs text-gray-500">
                           {new Date(upload.createdAt).toLocaleDateString('pt-BR')} — {upload.rowCount || 0} transações importadas
                           {upload.errorCount > 0 && (
@@ -658,7 +676,7 @@ export default function InsercaoDados() {
       )}
 
       {/* ============================================ */}
-      {/* TAB: Manual Transaction */}
+      {/* TAB: Manual Transaction — CORRIGIDO */}
       {/* ============================================ */}
       {activeTab === 'manual' && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-6">
@@ -732,46 +750,56 @@ export default function InsercaoDados() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
               <input
                 type="text"
-                placeholder="Ex: Pagamento fornecedor XYZ"
+                placeholder="Ex: Pagamento fornecedor, Recebimento cliente..."
                 value={transaction.description}
                 onChange={(e) => setTransaction(t => ({ ...t, description: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
+            {/* Vencimento — MOVIDO PARA CAMPOS OBRIGATÓRIOS */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Calendar className="w-3.5 h-3.5 inline mr-1" />
+                Vencimento *
+              </label>
+              <input
+                type="date"
+                value={transaction.dueDate}
+                onChange={(e) => setTransaction(t => ({ ...t, dueDate: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
           </div>
 
-          {/* Campos avançados (colapsáveis) */}
+          {/* Campos avançados (colapsáveis) — SEM Referência Bancária, Contraparte agora é texto livre */}
           <div className="border-t border-gray-200 pt-4">
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
               className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
             >
               {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              Campos Avançados (contraparte, documento, vencimento)
+              Campos Adicionais (contraparte, documento, observações)
             </button>
 
             {showAdvanced && (
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Contraparte — CAMPO ABERTO (texto livre) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     <Building2 className="w-3.5 h-3.5 inline mr-1" />
                     Contraparte
                   </label>
-                  <select
-                    value={transaction.counterpartyId}
-                    onChange={(e) => setTransaction(t => ({ ...t, counterpartyId: e.target.value }))}
+                  <input
+                    type="text"
+                    placeholder="Nome do fornecedor ou cliente"
+                    value={transaction.counterpartyName}
+                    onChange={(e) => setTransaction(t => ({ ...t, counterpartyName: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">Selecione...</option>
-                    {counterparties.map(cp => (
-                      <option key={cp.id} value={cp.id}>
-                        {cp.name} ({cp.type === 'supplier' ? 'Fornecedor' : cp.type === 'customer' ? 'Cliente' : 'Ambos'})
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
+                {/* Nº Documento */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     <Hash className="w-3.5 h-3.5 inline mr-1" />
@@ -786,34 +814,8 @@ export default function InsercaoDados() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <Calendar className="w-3.5 h-3.5 inline mr-1" />
-                    Vencimento
-                  </label>
-                  <input
-                    type="date"
-                    value={transaction.dueDate}
-                    onChange={(e) => setTransaction(t => ({ ...t, dueDate: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <FileCheck className="w-3.5 h-3.5 inline mr-1" />
-                    Referência Bancária
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="TED-123, PIX-456..."
-                    value={transaction.bankReference}
-                    onChange={(e) => setTransaction(t => ({ ...t, bankReference: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
+                {/* Observações */}
+                <div className="md:col-span-2 lg:col-span-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
                   <textarea
                     rows={2}
