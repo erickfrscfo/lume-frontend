@@ -91,6 +91,8 @@ const CATEGORY_GROUP_LABELS: Record<string, string> = {
 export default function TransactionDetailModal({ transaction, isOpen, onClose, onSave }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
@@ -222,6 +224,26 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
     }
   };
 
+  const handleDelete = async () => {
+    if (!transaction) return;
+    setIsDeleting(true);
+    try {
+      await financialApi.deleteTransaction(transaction.id);
+      setShowDeleteConfirm(false);
+      setSuccessMessage('Transação excluída com sucesso!');
+      setTimeout(() => {
+        setSuccessMessage('');
+        onSave();
+        onClose();
+      }, 1200);
+    } catch (err) {
+      console.error('Erro ao excluir transação:', err);
+      alert('Erro ao excluir. Tente novamente.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (!isOpen || !transaction) return null;
 
   const txType = transaction.tipo_transacao || transaction.type;
@@ -277,12 +299,21 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
             </div>
             <div className="flex items-center gap-2">
               {!isEditing ? (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700 transition-colors"
-                >
-                  ✏️ Editar
-                </button>
+                <>
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700 transition-colors"
+                  >
+                    ✏️ Editar
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="px-3 py-1.5 text-sm bg-white border border-red-200 rounded-lg hover:bg-red-50 text-red-600 transition-colors"
+                    title="Excluir transação"
+                  >
+                    🗑️ Excluir
+                  </button>
+                </>
               ) : (
                 <button
                   onClick={() => setIsEditing(false)}
@@ -691,6 +722,52 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
         </div>
       </div>
 
+      {/* Dialog de confirmação de exclusão */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeleteConfirm(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 animate-scale-in">
+            <div className="text-center">
+              <div className="w-14 h-14 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                <span className="text-2xl">⚠️</span>
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">Excluir Transação</h3>
+              <p className="text-sm text-slate-500 mb-1">
+                Tem certeza que deseja excluir esta transação?
+              </p>
+              <p className="text-sm font-medium text-slate-700 mb-1">
+                {transaction.description}
+              </p>
+              <p className={`text-lg font-bold mb-4 ${isExpense ? 'text-red-600' : 'text-emerald-600'}`}>
+                {isExpense ? '-' : '+'}{formatCurrency(Math.abs(transaction.amount))}
+              </p>
+              <p className="text-xs text-red-500 mb-5">
+                Esta ação não pode ser desfeita.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-2.5 px-4 text-sm font-medium bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex-1 py-2.5 px-4 text-sm font-medium bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <><span className="animate-spin">⟳</span> Excluindo...</>
+                  ) : (
+                    <>🗑️ Sim, Excluir</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes slideInRight {
           from { transform: translateX(100%); }
@@ -698,6 +775,13 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
         }
         .animate-slide-in-right {
           animation: slideInRight 0.25s ease-out;
+        }
+        @keyframes scaleIn {
+          from { transform: scale(0.9); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        .animate-scale-in {
+          animation: scaleIn 0.2s ease-out;
         }
       `}</style>
     </div>
