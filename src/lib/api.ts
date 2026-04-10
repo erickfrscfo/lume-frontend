@@ -280,10 +280,16 @@ export const healthApi = {
 };
 
 // ============================================
+// CATEGORIES (Plano de Contas)
+// ============================================
+export const categoriesApi = {
+  /** Lista todas as categorias do plano de contas da empresa */
+  list: () => api.get('/categories'),
+};
+
+// ============================================
 // REPORT (Relatório Dinâmico)
 // ============================================
-// ADICIONAR ao final do arquivo client/src/lib/api.ts, ANTES da linha "export default api;"
-
 export const reportApi = {
   /** Lista indicadores disponíveis (padrão + custom), agrupados por categoria */
   getIndicators: () => api.get('/report/indicators'),

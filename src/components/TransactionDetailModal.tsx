@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { financialApi, counterpartiesApi } from '@/lib/api';
+import React, { useState, useEffect, useMemo } from 'react';
+import { financialApi, counterpartiesApi, categoriesApi } from '@/lib/api';
 
 interface TransactionDetail {
   dueDate: string | null;
@@ -23,6 +23,13 @@ interface Counterparty {
   type: string | null;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  code: string;
+  type: 'INCOME' | 'EXPENSE';
+}
+
 interface Transaction {
   id: string;
   date: string;
@@ -33,7 +40,7 @@ interface Transaction {
   tipo_custo?: 'FIXO' | 'VARIAVEL' | null;
   status?: string;
   source?: string;
-  category?: { name: string; code?: string };
+  category?: { id?: string; name: string; code?: string };
   counterparty?: Counterparty | null;
   detail?: TransactionDetail | null;
   notes?: string;
@@ -68,10 +75,25 @@ function formatDate(dateStr: string): string {
   }
 }
 
+/** Agrupa categorias por prefixo do código para exibir no select */
+const CATEGORY_GROUP_LABELS: Record<string, string> = {
+  '1': 'Receita Operacional',
+  '2': 'Receita Não Operacional',
+  '3': 'Custos Diretos (CMV/CSP)',
+  '4': 'Despesas com Pessoal',
+  '5': 'Despesas Operacionais',
+  '6': 'Despesas Comerciais',
+  '7': 'Despesas Financeiras',
+  '8': 'Impostos e Tributos',
+  '9': 'Investimentos (Capex)',
+};
+
 export default function TransactionDetailModal({ transaction, isOpen, onClose, onSave }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
   // Form state
@@ -81,6 +103,7 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
     date: '',
     notes: '',
     counterpartyId: '',
+    categoryId: '',
     dueDate: '',
     paymentDate: '',
     receiptDate: '',
@@ -94,13 +117,13 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
 
   useEffect(() => {
     if (transaction && isOpen) {
-      const txType = transaction.tipo_transacao || transaction.type;
       setFormData({
         description: transaction.description || '',
         amount: String(Math.abs(transaction.amount)),
         date: formatDateInput(transaction.date),
         notes: transaction.notes || '',
         counterpartyId: transaction.counterparty?.id || '',
+        categoryId: transaction.category?.id || '',
         dueDate: formatDateInput(transaction.detail?.dueDate),
         paymentDate: formatDateInput(transaction.detail?.paymentDate),
         receiptDate: formatDateInput(transaction.detail?.receiptDate),
@@ -114,6 +137,7 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
       setIsEditing(false);
       setSuccessMessage('');
       loadCounterparties();
+      loadCategories();
     }
   }, [transaction, isOpen]);
 
@@ -126,17 +150,54 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
     }
   };
 
+  const loadCategories = async () => {
+    if (categoriesLoaded && categories.length > 0) return; // Cache: não recarrega se já tem
+    try {
+      const res = await categoriesApi.list();
+      const data = res.data.data || res.data || [];
+      setCategories(data);
+      setCategoriesLoaded(true);
+    } catch (err) {
+      console.error('Erro ao carregar categorias:', err);
+    }
+  };
+
+  /** Prefixos de receita (1.x, 2.x) vs custos/despesas (3.x a 9.x) */
+  const INCOME_PREFIXES = ['1', '2'];
+  const EXPENSE_PREFIXES = ['3', '4', '5', '6', '7', '8', '9'];
+
+  /**
+   * Agrupa categorias por prefixo do código, filtrando pelo tipo da transação:
+   * - INCOME: mostra apenas categorias de receita (1.x, 2.x)
+   * - EXPENSE: mostra apenas categorias de custo/despesa (3.x a 9.x)
+   */
+  const groupedCategories = useMemo(() => {
+    const txType = transaction?.tipo_transacao || transaction?.type;
+    const allowedPrefixes = txType === 'INCOME' ? INCOME_PREFIXES : EXPENSE_PREFIXES;
+
+    const groups: Record<string, Category[]> = {};
+    categories
+      .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+      .forEach((cat) => {
+        const prefix = (cat.code || '').split('.')[0];
+        if (!allowedPrefixes.includes(prefix)) return; // Filtra por tipo
+        if (!groups[prefix]) groups[prefix] = [];
+        groups[prefix].push(cat);
+      });
+    return groups;
+  }, [categories, transaction]);
+
   const handleSave = async () => {
     if (!transaction) return;
     setIsSaving(true);
     try {
-      // Enviar null explicitamente quando campo é limpo (para derivar status PENDING)
       await financialApi.updateTransaction(transaction.id, {
         description: formData.description,
         amount: parseFloat(formData.amount),
         date: formData.date,
         notes: formData.notes || undefined,
         counterpartyId: formData.counterpartyId || undefined,
+        categoryId: formData.categoryId || undefined,
         dueDate: formData.dueDate || null,
         paymentDate: formData.paymentDate || null,
         receiptDate: formData.receiptDate || null,
@@ -326,16 +387,35 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
                 </div>
                 <div>
                   <label className="text-xs text-slate-500 block mb-1">Categoria</label>
-                  <p className="text-sm text-slate-900">
-                    {transaction.category ? (
-                      <span className="inline-flex items-center gap-1">
-                        <span className="text-xs text-slate-400">{transaction.category.code}</span>
-                        {transaction.category.name}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 italic">Sem categoria</span>
-                    )}
-                  </p>
+                  {isEditing ? (
+                    <select
+                      value={formData.categoryId}
+                      onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none bg-white"
+                    >
+                      <option value="">Selecionar categoria...</option>
+                      {Object.entries(groupedCategories).map(([prefix, cats]) => (
+                        <optgroup key={prefix} label={CATEGORY_GROUP_LABELS[prefix] || `Grupo ${prefix}`}>
+                          {cats.map((cat) => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.code} — {cat.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-sm text-slate-900">
+                      {transaction.category ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="text-xs text-slate-400">{transaction.category.code}</span>
+                          {transaction.category.name}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic">Sem categoria</span>
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
 
