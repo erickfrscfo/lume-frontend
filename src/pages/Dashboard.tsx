@@ -685,18 +685,32 @@ export default function Dashboard() {
       .filter(([k]) => isDirectCost(k))
       .reduce((sum, [, v]) => sum + v, 0);
 
-    // Despesas Operacionais = categorias 3.x a 8.x que NÃO são custo direto
-    // Isso evita contar duas vezes categorias como 4.1 e 4.4 que já estão no CMV/CSP
+    // Impostos e Tributos (8.x) — subtraídos antes do Lucro Bruto
+    // CORREÇÃO: Alinhando com Dashboards.tsx (transformDREData) que usa:
+    // grossProfit = revenue - cogs - taxes
+    const taxCodes = dreProfile?.taxCodes || ['8.'];
+    const isTaxCode = (code: string): boolean => {
+      return taxCodes.some(prefix => code.startsWith(prefix));
+    };
+
+    const taxes = Object.entries(monthData)
+      .filter(([k]) => isTaxCode(k))
+      .reduce((sum, [, v]) => sum + v, 0);
+
+    // Despesas Operacionais = categorias 3.x a 9.x que NÃO são custo direto e NÃO são impostos
+    // Isso evita contar duas vezes categorias que já estão no CMV/CSP ou nos impostos
     const opex = Object.entries(monthData)
       .filter(([k]) => {
         const prefix = k.split('.')[0];
-        if (!['3', '4', '5', '6', '7', '8'].includes(prefix)) return false;
-        return !isDirectCost(k);
+        if (!['3', '4', '5', '6', '7', '9'].includes(prefix)) return false;
+        return !isDirectCost(k) && !isTaxCode(k);
       })
       .reduce((sum, [, v]) => sum + v, 0);
 
-    const lucroBruto = receita - cmv;
-    const lucroLiquido = receita - cmv - opex;
+    // Lucro Bruto = Receita - CMV - Impostos (alinhado com DRE)
+    const lucroBruto = receita - cmv - taxes;
+    // Resultado Líquido = Lucro Bruto - Opex
+    const lucroLiquido = lucroBruto - opex;
 
     return {
       margemBruta: receita > 0 ? (lucroBruto / receita) * 100 : 0,
