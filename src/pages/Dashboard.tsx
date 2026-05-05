@@ -467,7 +467,7 @@ export default function Dashboard() {
   // CORREÇÃO: State para armazenar o saldo inicial (transações anteriores ao período do gráfico)
   const [cashflowInitialBalance, setCashflowInitialBalance] = useState<number>(0);
   const [dreRaw, setDreRaw] = useState<DREData>({});
-  const [dreProfile, setDreProfile] = useState<{ sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[] } | null>(null);
+  const [dreProfile, setDreProfile] = useState<{ sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[]; taxCodes?: string[] } | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scenariosOpen, setScenariosOpen] = useState(true);
@@ -690,7 +690,7 @@ export default function Dashboard() {
     // grossProfit = revenue - cogs - taxes
     const taxCodes = dreProfile?.taxCodes || ['8.'];
     const isTaxCode = (code: string): boolean => {
-      return taxCodes.some(prefix => code.startsWith(prefix));
+      return taxCodes.some((p: string) => code.startsWith(p));
     };
 
     const taxes = Object.entries(monthData)
