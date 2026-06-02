@@ -28,6 +28,8 @@ interface Category {
   name: string;
   code: string;
   type: 'INCOME' | 'EXPENSE';
+  globalCategoryId?: string | null;
+  source?: 'GLOBAL' | 'CUSTOM';
 }
 
 interface Transaction {
@@ -105,7 +107,7 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
     date: '',
     notes: '',
     counterpartyId: '',
-    categoryId: '',
+    categoryCode: '',
     dueDate: '',
     paymentDate: '',
     receiptDate: '',
@@ -125,7 +127,7 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
         date: formatDateInput(transaction.date),
         notes: transaction.notes || '',
         counterpartyId: transaction.counterparty?.id || '',
-        categoryId: transaction.category?.id || '',
+        categoryCode: transaction.category?.code || '',
         dueDate: formatDateInput(transaction.detail?.dueDate),
         paymentDate: formatDateInput(transaction.detail?.paymentDate),
         receiptDate: formatDateInput(transaction.detail?.receiptDate),
@@ -199,7 +201,7 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
         date: formData.date,
         notes: formData.notes || undefined,
         counterpartyId: formData.counterpartyId || undefined,
-        categoryId: formData.categoryId || undefined,
+        categoryCode: formData.categoryCode || undefined,
         dueDate: formData.dueDate || null,
         paymentDate: formData.paymentDate || null,
         receiptDate: formData.receiptDate || null,
@@ -420,16 +422,16 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
                   <label className="text-xs text-slate-500 block mb-1">Categoria</label>
                   {isEditing ? (
                     <select
-                      value={formData.categoryId}
-                      onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                      value={formData.categoryCode}
+                      onChange={(e) => setFormData({ ...formData, categoryCode: e.target.value })}
                       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none bg-white"
                     >
                       <option value="">Selecionar categoria...</option>
                       {Object.entries(groupedCategories).map(([prefix, cats]) => (
                         <optgroup key={prefix} label={CATEGORY_GROUP_LABELS[prefix] || `Grupo ${prefix}`}>
                           {cats.map((cat) => (
-                            <option key={cat.id} value={cat.id}>
-                              {cat.code} — {cat.name}
+                            <option key={cat.id} value={cat.code} disabled={cat.source === 'CUSTOM' && !cat.globalCategoryId}>
+                              {cat.code} — {cat.name}{cat.source === 'CUSTOM' && !cat.globalCategoryId ? ' (custom sem vínculo)' : ''}
                             </option>
                           ))}
                         </optgroup>

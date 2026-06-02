@@ -70,6 +70,7 @@ export const financialApi = {
     amount: number;
     type: 'INCOME' | 'EXPENSE';
     categoryId?: string;
+    categoryCode?: string;
     notes?: string;
   }) => api.post('/financial/transactions', data),
   deleteTransaction: (id: string) => api.delete(`/financial/transactions/${id}`),

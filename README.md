@@ -1,194 +1,215 @@
-# Lume Frontend
+# Esnork - Frontend
 
-**Lume** é uma plataforma de gestão financeira inteligente para empresas, com dashboard interativo, análise de fluxo de caixa, projeções com cenários, reunião executiva com IA e importação de dados via CSV.
+## 📋 Visão Geral
 
----
+Frontend web da plataforma Esnork, um sistema de inteligência financeira para PMEs. A aplicação entrega autenticação, dashboard financeiro, análise com IA, upload de dados, OCR de documentos, alertas, dashboards operacionais e montagem de relatórios gerenciais.
 
-## Stack Tecnológica
+O projeto usa React com TypeScript, Vite, Tailwind CSS e integração REST com o backend hospedado por padrão em Railway.
 
-| Tecnologia | Versão | Uso |
-|------------|--------|-----|
-| **React** | 18+ | Framework de UI |
-| **TypeScript** | 5+ | Tipagem estática |
-| **Vite** | 5+ | Build tool e dev server |
-| **Tailwind CSS** | 3+ | Estilização utilitária |
-| **Recharts** | 2+ | Gráficos e visualizações |
-| **React Router** | 6+ | Roteamento SPA |
-| **xlsx (SheetJS)** | 0.18+ | Exportação de planilhas Excel |
+## 🚀 Quick Start
 
----
+### Pré-requisitos
 
-## Estrutura de Pastas e Arquivos
+- Node.js 18+ recomendado
+- npm 9+
+- Backend Esnork disponível localmente ou em produção
 
-```
-lume-frontend/
-├── public/                        # Arquivos estáticos servidos na raiz
-├── src/
-│   ├── components/                # Componentes reutilizáveis
-│   │   ├── AlertsPanel.tsx        # Painel de alertas financeiros
-│   │   ├── CashflowChart.tsx      # Gráfico de fluxo de caixa (entradas/saídas/saldo)
-│   │   ├── DateRangePicker.tsx    # Seletor de intervalo de datas
-│   │   ├── ExplainModal.tsx       # Modal de explicação por IA dos indicadores
-│   │   ├── Layout.tsx             # Layout principal com sidebar e área de conteúdo
-│   │   ├── LoadingSpinner.tsx     # Componente de loading/spinner
-│   │   ├── MetricCard.tsx         # Card de indicador (Saldo, Burn Rate, Runway)
-│   │   ├── ProtectedRoute.tsx     # Wrapper de rota protegida por autenticação
-│   │   └── Sidebar.tsx            # Barra lateral de navegação (tema dark)
-│   │
-│   ├── contexts/                  # Contextos React (estado global)
-│   │   └── AuthContext.tsx         # Contexto de autenticação (login/logout/token)
-│   │
-│   ├── hooks/                     # Hooks customizados
-│   │   └── useApi.ts              # Hook para chamadas à API com autenticação
-│   │
-│   ├── lib/                       # Utilitários e configurações
-│   │   ├── api.ts                 # Cliente HTTP (axios) com interceptors e endpoints
-│   │   └── utils.ts               # Funções utilitárias (formatCurrency, formatDate, etc.)
-│   │
-│   ├── pages/                     # Páginas da aplicação
-│   │   ├── Dashboard.tsx          # Dashboard principal com indicadores e chat IA
-│   │   ├── Dashboards.tsx         # Tela de dashboards com gráficos e transações
-│   │   ├── InsercaoDados.tsx      # Tela de importação de dados via CSV
-│   │   ├── Integracoes.tsx        # Tela de integrações com serviços externos
-│   │   ├── Login.tsx              # Tela de login/autenticação
-│   │   └── ReuniaoExecutiva.tsx   # Tela de reunião executiva com IA
-│   │
-│   ├── App.tsx                    # Componente raiz com rotas e providers
-│   ├── main.tsx                   # Ponto de entrada React (ReactDOM.render)
-│   ├── index.css                  # Estilos globais e tokens do Tailwind
-│   └── vite-env.d.ts             # Tipos de ambiente do Vite
-│
-├── .env                           # Variáveis de ambiente (API URL, etc.)
-├── .env.example                   # Exemplo de variáveis de ambiente
-├── .gitignore                     # Arquivos ignorados pelo Git
-├── index.html                     # HTML principal (entry point do Vite)
-├── package.json                   # Dependências e scripts npm
-├── package-lock.json              # Lock de versões das dependências
-├── postcss.config.js              # Configuração do PostCSS
-├── tailwind.config.js             # Configuração do Tailwind CSS
-├── tsconfig.json                  # Configuração do TypeScript
-├── vercel.json                    # Configuração de deploy no Vercel
-└── vite.config.ts                 # Configuração do Vite (aliases, proxy, etc.)
-```
-
----
-
-## Descrição dos Componentes
-
-### Componentes (`src/components/`)
-
-| Componente | Descrição |
-|------------|-----------|
-| **AlertsPanel.tsx** | Exibe alertas financeiros gerados automaticamente (ex: saldo negativo, burn rate alto). Inclui ícones de severidade e ações sugeridas. |
-| **CashflowChart.tsx** | Gráfico de barras e linhas com Recharts. Entradas (verde) acima da linha zero, saídas (vermelho) abaixo. Linha de saldo acumulado. Suporta cenários e projeções futuras. |
-| **DateRangePicker.tsx** | Componente de seleção de período com calendário. Usado nos filtros de transações e dashboards. |
-| **ExplainModal.tsx** | Modal que envia dados de um indicador para a IA e exibe uma explicação em linguagem natural. Botão "Explicar" presente nos cards e gráficos. |
-| **Layout.tsx** | Wrapper de layout que renderiza o Sidebar à esquerda e o conteúdo da página à direita. Gerencia o estado de collapse do sidebar. |
-| **LoadingSpinner.tsx** | Spinner animado exibido durante carregamentos de dados. |
-| **MetricCard.tsx** | Card de indicador financeiro com suporte a temas de cor (`blue` para Saldo, `red` para Burn Rate, `green` para Runway). Exibe título, valor, variação percentual e ícone. |
-| **ProtectedRoute.tsx** | HOC que verifica se o usuário está autenticado antes de renderizar a rota. Redireciona para `/login` se não autenticado. |
-| **Sidebar.tsx** | Barra lateral de navegação com tema dark (fundo #0c1527). Item ativo em azul brilhante com seta indicadora. Suporta collapse/expand. Exibe nome do usuário e botão de logout no rodapé. |
-
-### Páginas (`src/pages/`)
-
-| Página | Rota | Descrição |
-|--------|------|-----------|
-| **Login.tsx** | `/login` | Tela de autenticação com email e senha. Redireciona para o Dashboard após login bem-sucedido. |
-| **Dashboard.tsx** | `/` | Dashboard principal com indicadores (Saldo de Caixa, Taxa de Queima, Runway), chat com IA financeira e alertas. |
-| **Dashboards.tsx** | `/dashboards` | Tela de dashboards detalhados com gráfico de fluxo de caixa (CashflowChart), tabela de transações com filtros (tipo, período), paginação e exportação Excel. |
-| **InsercaoDados.tsx** | `/insercao-dados` | Tela de importação de dados via upload de arquivo CSV. Exibe progresso de upload e histórico de importações. |
-| **Integracoes.tsx** | `/integracoes` | Tela de integrações com serviços externos (bancos, ERPs, etc.). |
-| **ReuniaoExecutiva.tsx** | `/reuniao-executiva` | Tela de reunião executiva com IA que analisa os dados financeiros e gera insights e recomendações. |
-
-### Contextos, Hooks e Libs
-
-| Arquivo | Descrição |
-|---------|-----------|
-| **AuthContext.tsx** | Contexto React que gerencia autenticação: login, logout, token JWT, dados do usuário e empresa. Persiste sessão via localStorage. |
-| **useApi.ts** | Hook customizado que encapsula chamadas à API com headers de autenticação e tratamento de erros. |
-| **api.ts** | Cliente HTTP configurado com axios. Define base URL, interceptors de autenticação e todos os endpoints da API (dashboard, transações, upload, IA, etc.). |
-| **utils.ts** | Funções utilitárias: `formatCurrency` (R$ xx.xxx,xx), `formatDate` (DD/MM/AAAA), `cn` (classnames), entre outras. |
-
----
-
-## Variáveis de Ambiente
-
-Crie um arquivo `.env` na raiz do projeto com base no `.env.example`:
-
-```env
-VITE_API_URL=https://sua-api.railway.app
-```
-
-| Variável | Descrição |
-|----------|-----------|
-| `VITE_API_URL` | URL base da API backend (Railway) |
-
----
-
-## Scripts Disponíveis
+### Instalação
 
 ```bash
-# Instalar dependências
+cd lume-frontend
 npm install
+```
 
-# Iniciar servidor de desenvolvimento
+### Configuração
+
+Crie ou ajuste o arquivo `.env` na raiz de `lume-frontend`:
+
+```env
+VITE_API_URL=https://lume-mvp-production.up.railway.app
+```
+
+Para rodar contra o backend local:
+
+```env
+VITE_API_URL=http://localhost:3001
+```
+
+### Rodar em desenvolvimento
+
+```bash
 npm run dev
+```
 
-# Build para produção
+O Vite inicia a aplicação em `http://localhost:5173` por padrão.
+
+### Build e preview
+
+```bash
 npm run build
-
-# Preview do build de produção
 npm run preview
 ```
 
----
+## 📁 Estrutura do Projeto
 
-## Deploy
-
-O projeto está configurado para deploy automático no **Vercel** via push para a branch `main`.
-
-```bash
-# Após fazer alterações:
-git add .
-git commit -m "descrição da mudança"
-git push origin main
+```text
+lume-frontend/
+├── public/                    # Arquivos estáticos
+├── src/
+│   ├── components/            # Componentes reutilizáveis
+│   ├── contexts/              # Contextos React
+│   ├── hooks/                 # Hooks customizados
+│   ├── lib/                   # Cliente de API e utilitários
+│   ├── pages/                 # Páginas/rotas da aplicação
+│   ├── App.tsx                # Rotas principais
+│   ├── main.tsx               # Entrada React
+│   └── index.css              # Estilos globais Tailwind
+├── .env.example               # Exemplo de variáveis de ambiente
+├── package.json               # Scripts e dependências
+├── tailwind.config.js         # Configuração Tailwind
+├── vercel.json                # Rewrites e cache para deploy Vercel
+└── vite.config.ts             # Configuração Vite e alias @
 ```
 
-O Vercel detecta o push automaticamente e faz o deploy em ~1-2 minutos. A configuração de rewrite para SPA está no `vercel.json`.
+### Páginas atuais
 
----
+| Página | Rota | Descrição |
+| --- | --- | --- |
+| `Login.tsx` | `/login` | Login por usuário, senha e código da empresa. |
+| `AdminOnboarding.tsx` | `/admin/onboarding?key=...` | Cadastro administrativo de empresa, usuário e plano de contas. Requer chave admin validada no backend. |
+| `Dashboard.tsx` | `/` | Visão geral financeira com indicadores, alertas, gráficos e blocos operacionais. |
+| `ReuniaoExecutiva.tsx` | `/reuniao` | Assistente de reunião executiva com IA financeira. |
+| `InsercaoDados.tsx` | `/dados` | Inserção por CSV, cadastro manual e OCR de documentos fiscais. |
+| `Dashboards.tsx` | `/dashboards` | Dashboards, DRE, fluxo de caixa, transações e exportação. |
+| `AlertasIA.tsx` | `/alertas` | Central de alertas financeiros e insights acionáveis. |
+| `ReportBuilder.tsx` | `/relatorio` | Montagem de relatório com indicadores padrão/customizados e preview. |
+| `Conciliacao.tsx` | `/conciliacao` | Conciliação financeira, marcação de pagamentos/recebimentos e conciliação em lote. |
+| `Integracoes.tsx` | `/integracoes` | Tela de integrações externas, atualmente preparada para evolução. |
 
-## Funcionalidades Principais
+> Observação: existem arquivos `Contrapartes.tsx`, `Documentos.tsx` e `Insights.tsx`, mas eles não estão registrados nas rotas atuais de `src/App.tsx`.
 
-1. **Dashboard com Indicadores** — Saldo de Caixa (azul), Taxa de Queima (vermelho), Runway (verde) com variação percentual e explicação por IA.
+### Componentes principais
 
-2. **Gráfico de Fluxo de Caixa** — Barras verdes (entradas) acima da linha zero, barras vermelhas (saídas) abaixo. Linha de saldo acumulado. Suporte a cenários e projeções.
+| Componente | Uso |
+| --- | --- |
+| `Layout.tsx` e `Sidebar.tsx` | Estrutura autenticada, navegação lateral, badge de alertas e logout. |
+| `ProtectedRoute.tsx` | Bloqueia rotas privadas sem token JWT. |
+| `MetricCard.tsx` | Cards de indicadores financeiros. |
+| `CashflowChart.tsx` | Visualização de fluxo de caixa com Recharts. |
+| `AlertsPanel.tsx` | Exibição de alertas financeiros. |
+| `ExplainModal.tsx` | Explicação de métricas via IA. |
+| `TransactionDetailModal.tsx` | Detalhamento e edição contextual de transações. |
+| `CostClassificationModal.tsx` | Classificação de custo fixo/variável. |
+| `ReportPreview.tsx` | Preview do relatório gerencial. |
+| `CustomIndicatorDialog.tsx` | Criação de indicadores customizados via IA. |
 
-3. **Tabela de Transações** — Listagem paginada com filtros por tipo (Receita/Despesa) e período. Exportação para Excel (.xlsx) respeitando os filtros ativos.
+## 🔧 Funcionalidades
 
-4. **Importação de Dados** — Upload de CSV com mapeamento automático de colunas e classificação por IA.
+- Autenticação com JWT e persistência em `localStorage`.
+- Cadastro administrativo de empresas com plano de contas padrão ou customizado.
+- Dashboard financeiro com saldo, burn rate, runway, alertas e gráficos.
+- Fluxo de caixa e DRE por período.
+- Listagem, criação, edição e exclusão de transações.
+- Upload de CSV com histórico de importações.
+- Inserção manual de transações.
+- OCR de documentos fiscais com extração via IA, sugestão de categoria, contraparte e confirmação de transação.
+- Assistente financeiro com histórico de conversa.
+- Explicação de indicadores por IA.
+- Alertas financeiros com marcação como lido, dispensa e geração manual.
+- Classificação de custos fixos e variáveis.
+- Montagem de relatório com indicadores padrão, indicadores customizados e template persistido.
+- Conciliação financeira acessível por rota protegida e navegação lateral.
+- Exportação de dados para planilha nas telas que usam `xlsx`.
+- Deploy SPA preparado para Vercel com rewrite para `index.html`.
 
-5. **Chat com IA** — Assistente financeiro que responde perguntas sobre os dados da empresa.
+## 📦 Dependências
 
-6. **Reunião Executiva** — Sessão de análise com IA que gera relatório executivo baseado nos dados financeiros.
+Versões principais conforme `package.json`:
 
-7. **Alertas Financeiros** — Notificações automáticas sobre situações críticas (saldo negativo, burn rate elevado, etc.).
+| Pacote | Versão | Uso |
+| --- | --- | --- |
+| `react` / `react-dom` | `^18.3.1` | UI React. |
+| `react-router-dom` | `^6.26.0` | Rotas SPA. |
+| `axios` | `^1.7.2` | Cliente HTTP. |
+| `lucide-react` | `^0.453.0` | Ícones. |
+| `recharts` | `^2.15.2` | Gráficos. |
+| `xlsx` | `^0.18.5` | Exportação de planilhas. |
+| `typescript` | `^5.5.4` | Tipagem. |
+| `vite` | `^5.4.0` | Build e dev server. |
+| `tailwindcss` | `^3.4.10` | CSS utilitário. |
 
----
+## 🔌 Integrations
 
-## Dependências Principais
+### Backend REST
 
-```json
-{
-  "react": "^18.x",
-  "react-dom": "^18.x",
-  "react-router-dom": "^6.x",
-  "recharts": "^2.x",
-  "axios": "^1.x",
-  "xlsx": "^0.18.x",
-  "lucide-react": "^0.x",
-  "tailwindcss": "^3.x",
-  "typescript": "^5.x",
-  "vite": "^5.x"
-}
+O frontend centraliza chamadas em `src/lib/api.ts`, com `baseURL` em:
+
+```ts
+`${VITE_API_URL}/api`
 ```
+
+Principais grupos de API consumidos:
+
+- `/auth`: login, sessão, onboarding administrativo.
+- `/financial`: dashboard, fluxo de caixa, DRE, transações e breakdown de custos.
+- `/upload`: importação CSV e histórico.
+- `/ocr`: extração e confirmação de documentos.
+- `/ai`: chat, explicações, prompts e classificação de custos.
+- `/alerts`: alertas financeiros.
+- `/forecast`: projeções de caixa.
+- `/transactions`: transações operacionais para conciliação.
+- `/counterparties`: contrapartes.
+- `/reconciliations`: dashboard e conciliação em lote.
+- `/documents`: documentos fiscais.
+- `/insights`: insights de IA.
+- `/categories`: plano de contas.
+- `/report`: indicadores, template e geração de relatório.
+
+### Deploy
+
+O arquivo `vercel.json` configura:
+
+- Rewrite de todas as rotas para `index.html`, necessário para SPA.
+- Cache imutável para assets em `/assets/*`.
+
+## 🐛 Troubleshooting
+
+### Login retorna 401
+
+Verifique se `VITE_API_URL` aponta para o backend correto e se o código da empresa está correto. Ao receber 401, o interceptor remove `lume_token` e `lume_user` do `localStorage`.
+
+### Tela em branco após deploy
+
+Confirme que o deploy usou `npm run build` e que o rewrite do `vercel.json` está ativo.
+
+### Chamadas para API falham em desenvolvimento
+
+Use `VITE_API_URL=http://localhost:3001` quando o backend estiver local. Reinicie o Vite após alterar `.env`.
+
+### OCR ou IA não responde
+
+O frontend apenas envia as requisições. Verifique no backend se `OPENAI_API_KEY` está configurada e se a API está acessível.
+
+## 📝 Changelog
+
+### 2026-06-02 — Correções funcionais
+
+- Registrada a rota protegida `/conciliacao` em `src/App.tsx`.
+- Adicionado item "Conciliação" na navegação lateral.
+- O modal de detalhes de transação passou a enviar `categoryCode`, compatível com categorias resolvidas por empresa.
+- Categorias customizadas sem vínculo com categoria global aparecem como indisponíveis para seleção no modal, evitando falha de FK no backend.
+
+### 2026-06-02
+
+- README atualizado para refletir o estado atual do frontend.
+- Documentadas rotas reais registradas em `src/App.tsx`.
+- Documentadas APIs consumidas por `src/lib/api.ts`.
+- Atualizadas versões reais de React, Vite, Tailwind e demais dependências.
+- Incluídas funcionalidades de OCR, relatório customizado, alertas, custos e onboarding administrativo.
+
+### Histórico anterior
+
+- Dashboard financeiro com indicadores e gráficos.
+- Importação CSV e classificação de transações.
+- Assistente financeiro com IA.
+- Alertas financeiros e reunião executiva.

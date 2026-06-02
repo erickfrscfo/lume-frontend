@@ -11,6 +11,7 @@ import Dashboards from '@/pages/Dashboards';
 import Integracoes from '@/pages/Integracoes';
 import AlertasIA from '@/pages/AlertasIA';
 import ReportBuilder from '@/pages/ReportBuilder';
+import Conciliacao from '@/pages/Conciliacao';
 
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/dashboards" element={<Dashboards />} />
         <Route path="/alertas" element={<AlertasIA />} />
         <Route path="/relatorio" element={<ReportBuilder />} />
+        <Route path="/conciliacao" element={<Conciliacao />} />
         <Route path="/integracoes" element={<Integracoes />} />
       </Route>
 
