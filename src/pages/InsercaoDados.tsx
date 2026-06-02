@@ -34,6 +34,7 @@ interface ExtractedData {
   descricao: string;
   referencia: string | null;
   categoria_sugerida: string | null;
+  categoria_codigo: string | null;
   categoria_match: { id: string; name: string; code: string } | null;
   tipo_custo: string | null;
   itens: Array<{ descricao: string; valor: number }>;
@@ -290,9 +291,17 @@ export default function InsercaoDados() {
         setOcrResult(result);
 
         // Auto-match de categoria: usar o match do backend se disponível
-        let categoriaAutoMatch = '';
-        if (result.extractedData.categoria_match?.name) {
-          categoriaAutoMatch = result.extractedData.categoria_match.name;
+        let categoriaAutoMatch: Category | null = null;
+        if (result.extractedData.categoria_match?.code) {
+          categoriaAutoMatch = categories.find(cat =>
+            cat.code === result.extractedData.categoria_match?.code &&
+            (cat.type === result.extractedData.tipo_transacao || cat.type === 'BOTH')
+          ) || {
+            id: result.extractedData.categoria_match.id,
+            name: result.extractedData.categoria_match.name,
+            code: result.extractedData.categoria_match.code,
+            type: result.extractedData.tipo_transacao,
+          };
         } else if (result.extractedData.categoria_sugerida) {
           // Tentar match local com as categorias carregadas
           const sugerida = result.extractedData.categoria_sugerida.toLowerCase();
@@ -305,7 +314,7 @@ export default function InsercaoDados() {
             sugerida.includes(cat.name.toLowerCase())
           );
           if (match) {
-            categoriaAutoMatch = match.name;
+            categoriaAutoMatch = match;
           }
         }
 
@@ -319,7 +328,9 @@ export default function InsercaoDados() {
           contraparte_nome: result.extractedData.fornecedor_ou_cliente || '',
           contraparte_documento: result.extractedData.cnpj_cpf || '',
           referencia: result.extractedData.referencia || '',
-          categoria: categoriaAutoMatch,
+          categoria: categoriaAutoMatch?.name || '',
+          categoryId: categoriaAutoMatch?.id || '',
+          categoryCode: categoriaAutoMatch?.code || '',
           tipo_custo: result.extractedData.tipo_custo || '',
         });
       } else {
@@ -341,6 +352,8 @@ export default function InsercaoDados() {
       // Enviar todos os dados incluindo tipo_custo e data_vencimento
       const payload = {
         ...ocrEditData,
+        categoryId: ocrEditData.categoryId || null,
+        categoryCode: ocrEditData.categoryCode || null,
         tipo_custo: ocrEditData.tipo_custo || null,
         data_vencimento: ocrEditData.data_vencimento || null,
       };
@@ -374,6 +387,10 @@ export default function InsercaoDados() {
     setOcrPreview(null);
     setOcrError(null);
     setOcrConfirmResult(null);
+  };
+
+  const getCategoryOptions = (type: string) => {
+    return categories.filter(cat => cat.type === type || cat.type === 'BOTH');
   };
 
   // ============================================
@@ -1062,7 +1079,13 @@ export default function InsercaoDados() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo *</label>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setOcrEditData((d: any) => ({ ...d, tipo_transacao: 'EXPENSE' }))}
+                      onClick={() => setOcrEditData((d: any) => ({
+                        ...d,
+                        tipo_transacao: 'EXPENSE',
+                        categoria: '',
+                        categoryId: '',
+                        categoryCode: '',
+                      }))}
                       className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-all ${
                         ocrEditData.tipo_transacao === 'EXPENSE'
                           ? 'bg-red-50 border-red-300 text-red-700'
@@ -1072,7 +1095,14 @@ export default function InsercaoDados() {
                       Despesa
                     </button>
                     <button
-                      onClick={() => setOcrEditData((d: any) => ({ ...d, tipo_transacao: 'INCOME' }))}
+                      onClick={() => setOcrEditData((d: any) => ({
+                        ...d,
+                        tipo_transacao: 'INCOME',
+                        categoria: '',
+                        categoryId: '',
+                        categoryCode: '',
+                        tipo_custo: '',
+                      }))}
                       className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-all ${
                         ocrEditData.tipo_transacao === 'INCOME'
                           ? 'bg-green-50 border-green-300 text-green-700'
@@ -1082,6 +1112,31 @@ export default function InsercaoDados() {
                       Receita
                     </button>
                   </div>
+                </div>
+
+                {/* Categoria */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                  <select
+                    value={ocrEditData.categoryCode || ''}
+                    onChange={(e) => {
+                      const selected = getCategoryOptions(ocrEditData.tipo_transacao).find(cat => cat.code === e.target.value);
+                      setOcrEditData((d: any) => ({
+                        ...d,
+                        categoria: selected?.name || '',
+                        categoryId: selected?.id || '',
+                        categoryCode: selected?.code || '',
+                      }));
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    <option value="">Sem categoria</option>
+                    {getCategoryOptions(ocrEditData.tipo_transacao).map((cat) => (
+                      <option key={`${cat.type}-${cat.code}`} value={cat.code}>
+                        {cat.code} - {cat.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Data */}

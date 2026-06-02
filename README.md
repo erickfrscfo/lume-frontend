@@ -192,6 +192,12 @@ O frontend apenas envia as requisições. Verifique no backend se `OPENAI_API_KE
 
 ## 📝 Changelog
 
+### 2026-06-02 — Correção OCR de categoria fiscal
+
+- A revisão de documentos via OCR passou a exibir um select de Categoria antes da confirmação.
+- O frontend agora preserva e envia `categoryId` e `categoryCode` retornados pelo backend, evitando que uma NF seja confirmada sem categoria quando há match no plano de contas.
+- Ao trocar o tipo entre Despesa e Receita na revisão OCR, a categoria selecionada é limpa para evitar categoria incompatível com o tipo da transação.
+
 ### 2026-06-02 — Correções funcionais
 
 - Registrada a rota protegida `/conciliacao` em `src/App.tsx`.
