@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, type ComponentType } from 'react';
 import { aiApi, financialApi } from '@/lib/api';
 import { formatCurrency, formatCurrencyFull, formatDate } from '@/lib/utils';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight,
-  ChevronDown, ChevronUp, ChevronRight, Filter, Info, Download, Loader2
+  ChevronDown, ChevronUp, ChevronRight, Filter, Info, Download, Loader2, Percent
 } from 'lucide-react';
 import { ExplainButton } from '@/components/ExplainModal';
 import DateRangePicker from '@/components/DateRangePicker';
@@ -47,6 +47,28 @@ interface Transaction {
     notes: string | null;
   } | null;
   notes?: string;
+}
+
+interface DashboardMetric {
+  value: number;
+  change?: number;
+}
+
+interface DashboardOverviewData {
+  cashBalance: DashboardMetric;
+  burnRate: DashboardMetric;
+  runway: DashboardMetric;
+  growth: DashboardMetric;
+  transactionCount: number;
+  pending?: {
+    count: number;
+    totalExpenses: number;
+    totalIncomes: number;
+    overdueExpenses?: number;
+    overdueIncomes?: number;
+    overdueAmount?: number;
+    overdueCount?: number;
+  };
 }
 
 // ============================================
@@ -178,6 +200,56 @@ const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Se
 function formatMonthLabel(monthKey: string): string {
   const [year, m] = monthKey.split('-');
   return `${MONTH_NAMES[parseInt(m) - 1]}/${year.slice(2)}`;
+}
+
+function getMetricValue(metric?: DashboardMetric | number | null): number {
+  if (typeof metric === 'number') return metric;
+  return Number(metric?.value || 0);
+}
+
+function formatCompactCurrency(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `R$ ${(value / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`;
+  if (abs >= 100_000) return `R$ ${(value / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} mil`;
+  return formatCurrency(value);
+}
+
+function ExecutiveMetricCard({
+  title,
+  value,
+  detail,
+  icon: Icon,
+  tone = 'slate',
+}: {
+  title: string;
+  value: string;
+  detail: string;
+  icon: ComponentType<{ className?: string }>;
+  tone?: 'slate' | 'emerald' | 'red' | 'amber' | 'blue' | 'violet';
+}) {
+  const toneClasses = {
+    slate: 'bg-slate-50 text-slate-700 border-slate-200',
+    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    red: 'bg-red-50 text-red-700 border-red-200',
+    amber: 'bg-amber-50 text-amber-700 border-amber-200',
+    blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    violet: 'bg-violet-50 text-violet-700 border-violet-200',
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 min-h-[132px] flex flex-col justify-between">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-slate-500 truncate">{title}</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900 tracking-normal break-words">{value}</p>
+        </div>
+        <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${toneClasses[tone]}`}>
+          <Icon className="w-4 h-4" />
+        </div>
+      </div>
+      <p className="text-xs text-slate-500 leading-snug mt-3">{detail}</p>
+    </div>
+  );
 }
 
 // ============================================
@@ -746,6 +818,7 @@ import React from 'react';
 
 export default function Dashboards() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [dashboardData, setDashboardData] = useState<DashboardOverviewData | null>(null);
   const [dreData, setDreData] = useState<DRERow[]>([]);
   const [rawDreData, setRawDreData] = useState<any>(null);
   const [monthKeys, setMonthKeys] = useState<string[]>([]);
@@ -797,9 +870,14 @@ export default function Dashboards() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [dreRes] = await Promise.allSettled([
+      const [dashboardRes, dreRes] = await Promise.allSettled([
+        financialApi.dashboard(),
         financialApi.dre(12),
       ]);
+      if (dashboardRes.status === 'fulfilled') {
+        const dashboardResponse = dashboardRes.value.data;
+        setDashboardData(dashboardResponse.data || dashboardResponse || null);
+      }
       if (dreRes.status === 'fulfilled') {
         const dreResponse = dreRes.value.data;
         const raw = dreResponse.data || dreResponse || {};
@@ -1037,6 +1115,81 @@ export default function Dashboards() {
     });
   }, [transactions, txCategoryFilter, txCostTypeFilter]);
 
+  const latestDre = useMemo(() => {
+    return dreData.length > 0 ? dreData[dreData.length - 1] : null;
+  }, [dreData]);
+
+  const overviewCards = useMemo(() => {
+    const cashBalance = getMetricValue(dashboardData?.cashBalance);
+    const pendingIncome = dashboardData?.pending?.totalIncomes || 0;
+    const pendingExpense = dashboardData?.pending?.totalExpenses || 0;
+    const overdueAmount = dashboardData?.pending?.overdueAmount || 0;
+    const overdueIncome = dashboardData?.pending?.overdueIncomes || 0;
+    const runway = getMetricValue(dashboardData?.runway);
+    const monthlyFlow = latestDre?.netIncome || 0;
+    const netMargin = latestDre && latestDre.revenue > 0 ? (latestDre.netIncome / latestDre.revenue) * 100 : 0;
+    const monthLabel = latestDre ? formatMonthLabel(latestDre.monthKey) : 'mês atual';
+
+    return [
+      {
+        title: 'Saldo de Caixa',
+        value: formatCompactCurrency(cashBalance),
+        detail: 'Receitas recebidas menos despesas pagas.',
+        icon: DollarSign,
+        tone: cashBalance >= 0 ? 'emerald' : 'red',
+      },
+      {
+        title: 'Fluxo do Mês',
+        value: formatCompactCurrency(monthlyFlow),
+        detail: `Resultado líquido em ${monthLabel}.`,
+        icon: monthlyFlow >= 0 ? ArrowUpRight : ArrowDownRight,
+        tone: monthlyFlow >= 0 ? 'emerald' : 'red',
+      },
+      {
+        title: 'A Receber',
+        value: formatCompactCurrency(pendingIncome),
+        detail: 'Receitas pendentes de recebimento.',
+        icon: ArrowUpRight,
+        tone: 'blue',
+      },
+      {
+        title: 'A Pagar',
+        value: formatCompactCurrency(pendingExpense),
+        detail: 'Despesas pendentes de pagamento.',
+        icon: ArrowDownRight,
+        tone: 'amber',
+      },
+      {
+        title: 'Vencidos',
+        value: formatCompactCurrency(overdueAmount),
+        detail: `${dashboardData?.pending?.overdueCount || 0} lançamento(s) em atraso.`,
+        icon: Info,
+        tone: overdueAmount > 0 ? 'red' : 'slate',
+      },
+      {
+        title: 'Inadimplência',
+        value: formatCompactCurrency(overdueIncome),
+        detail: 'Receitas vencidas e não recebidas.',
+        icon: TrendingDown,
+        tone: overdueIncome > 0 ? 'red' : 'slate',
+      },
+      {
+        title: 'Margem Líquida',
+        value: `${netMargin.toFixed(1)}%`,
+        detail: latestDre ? `Resultado líquido sobre receita em ${monthLabel}.` : 'Sem receita no período.',
+        icon: Percent,
+        tone: netMargin >= 10 ? 'emerald' : netMargin >= 0 ? 'amber' : 'red',
+      },
+      {
+        title: 'Runway',
+        value: runway >= 99 ? '99+ meses' : `${runway.toFixed(1)} meses`,
+        detail: 'Cobertura estimada pelo consumo médio.',
+        icon: TrendingUp,
+        tone: runway >= 6 ? 'emerald' : runway >= 3 ? 'amber' : 'red',
+      },
+    ] as const;
+  }, [dashboardData, latestDre]);
+
   if (isLoading) return <LoadingSpinner message="Carregando dashboards..." />;
 
   return (
@@ -1067,9 +1220,23 @@ export default function Dashboards() {
 
       {/* ========== OVERVIEW ========== */}
       {activeView === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Revenue Trend */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+            {overviewCards.map((card) => (
+              <ExecutiveMetricCard
+                key={card.title}
+                title={card.title}
+                value={card.value}
+                detail={card.detail}
+                icon={card.icon}
+                tone={card.tone}
+              />
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Revenue Trend */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-slate-900">Tendência de Receita</h3>
               {revenueChartData.length > 0 && (
@@ -1104,10 +1271,10 @@ export default function Dashboards() {
                 <p className="text-xs mt-1">Importe um CSV para visualizar tendências</p>
               </div>
             )}
-          </div>
+            </div>
 
-          {/* Expenses by Category */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            {/* Expenses by Category */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-slate-900">Despesas por Categoria</h3>
               {pieData.length > 0 && (
@@ -1147,10 +1314,10 @@ export default function Dashboards() {
                 ))}
               </div>
             )}
-          </div>
+            </div>
 
-          {/* FRENTE 4: Margins — sem EBITDA, apenas Margem Bruta e Margem Líquida */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 lg:col-span-2">
+            {/* FRENTE 4: Margins — sem EBITDA, apenas Margem Bruta e Margem Líquida */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-slate-900">Margens</h3>
               {marginsChartData.length > 0 && (
@@ -1183,6 +1350,7 @@ export default function Dashboards() {
                 <p className="text-xs mt-1">Importe um CSV para visualizar margens</p>
               </div>
             )}
+            </div>
           </div>
         </div>
       )}
