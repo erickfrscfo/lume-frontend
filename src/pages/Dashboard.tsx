@@ -467,7 +467,7 @@ export default function Dashboard() {
   // CORREÇÃO: State para armazenar o saldo inicial (transações anteriores ao período do gráfico)
   const [cashflowInitialBalance, setCashflowInitialBalance] = useState<number>(0);
   const [dreRaw, setDreRaw] = useState<DREData>({});
-  const [dreProfile, setDreProfile] = useState<{ sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[]; taxCodes?: string[] } | null>(null);
+  const [dreProfile, setDreProfile] = useState<{ sectorKey: string; sectorLabel: string; directCostLabel: string; grossProfitLabel: string; directCostCodes: string[]; excludeFromDirectCost?: string[]; taxCodes?: string[]; incomeTaxCodes?: string[] } | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scenariosOpen, setScenariosOpen] = useState(true);
@@ -685,32 +685,37 @@ export default function Dashboard() {
       .filter(([k]) => isDirectCost(k))
       .reduce((sum, [, v]) => sum + v, 0);
 
-    // Impostos e Tributos (8.x) — subtraídos antes do Lucro Bruto
-    // CORREÇÃO: Alinhando com Dashboards.tsx (transformDREData) que usa:
-    // grossProfit = revenue - cogs - taxes
-    const taxCodes = dreProfile?.taxCodes || ['8.'];
+    // Deduções da Receita / Impostos sobre Faturamento
+    const taxCodes = dreProfile?.taxCodes || ['8.1', '8.2', '8.3', '8.4'];
+    const incomeTaxCodes = dreProfile?.incomeTaxCodes || ['8.5', '8.7'];
     const isTaxCode = (code: string): boolean => {
       return taxCodes.some((p: string) => code.startsWith(p));
+    };
+    const isIncomeTaxCode = (code: string): boolean => {
+      return incomeTaxCodes.some((p: string) => code.startsWith(p));
     };
 
     const taxes = Object.entries(monthData)
       .filter(([k]) => isTaxCode(k))
       .reduce((sum, [, v]) => sum + v, 0);
 
-    // Despesas Operacionais = categorias 3.x a 9.x que NÃO são custo direto e NÃO são impostos
+    const incomeTaxes = Object.entries(monthData)
+      .filter(([k]) => isIncomeTaxCode(k))
+      .reduce((sum, [, v]) => sum + v, 0);
+
+    // Despesas Operacionais = categorias 3.x a 9.x que NÃO são custo direto, deduções da receita ou IRPJ/CSLL
     // Isso evita contar duas vezes categorias que já estão no CMV/CSP ou nos impostos
     const opex = Object.entries(monthData)
       .filter(([k]) => {
         const prefix = k.split('.')[0];
         if (!['3', '4', '5', '6', '7', '9'].includes(prefix)) return false;
-        return !isDirectCost(k) && !isTaxCode(k);
+        return !isDirectCost(k) && !isTaxCode(k) && !isIncomeTaxCode(k);
       })
       .reduce((sum, [, v]) => sum + v, 0);
 
-    // Lucro Bruto = Receita - CMV - Impostos (alinhado com DRE)
-    const lucroBruto = receita - cmv - taxes;
-    // Resultado Líquido = Lucro Bruto - Opex
-    const lucroLiquido = lucroBruto - opex;
+    const receitaLiquida = receita - taxes;
+    const lucroBruto = receitaLiquida - cmv;
+    const lucroLiquido = lucroBruto - opex - incomeTaxes;
 
     return {
       margemBruta: receita > 0 ? (lucroBruto / receita) * 100 : 0,

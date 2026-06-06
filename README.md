@@ -192,6 +192,12 @@ O frontend apenas envia as requisições. Verifique no backend se `OPENAI_API_KE
 
 ## 📝 Changelog
 
+### 2026-06-06 — Correção DRE de impostos
+
+- O DRE passou a exibir Receita Líquida, Resultado Operacional e IRPJ/CSLL em linhas separadas.
+- A linha de deduções antes do Lucro Bruto agora considera apenas impostos sobre faturamento (`8.1` a `8.4`), evitando deduzir IRPJ/CSLL da margem bruta.
+- Cards e contexto de explicação do DRE foram atualizados para usar a nova estrutura.
+
 ### 2026-06-02 — Correção OCR de categoria fiscal
 
 - A revisão de documentos via OCR passou a exibir um select de Categoria antes da confirmação.
