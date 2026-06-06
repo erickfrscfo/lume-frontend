@@ -196,6 +196,7 @@ O frontend apenas envia as requisições. Verifique no backend se `OPENAI_API_KE
 
 - A aba `Dashboards > Visão Geral` passou a exibir 8 cards no topo: Saldo de Caixa, Fluxo do Mês, A Receber, A Pagar, Vencidos, Inadimplência, Margem Líquida e Runway.
 - Os cards reaproveitam dados de `/financial/dashboard` e DRE, mantendo os gráficos existentes abaixo da visão executiva.
+- Layout dos cards refinado para leitura em 4 colunas no desktop, com visual mais suave e botão `Explica pra mim` em cada indicador.
 
 ### 2026-06-06 — Correção DRE de impostos
 

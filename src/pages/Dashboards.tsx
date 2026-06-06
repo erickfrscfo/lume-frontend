@@ -219,35 +219,45 @@ function ExecutiveMetricCard({
   value,
   detail,
   icon: Icon,
+  explainContext,
   tone = 'slate',
 }: {
   title: string;
   value: string;
   detail: string;
   icon: ComponentType<{ className?: string }>;
+  explainContext: string;
   tone?: 'slate' | 'emerald' | 'red' | 'amber' | 'blue' | 'violet';
 }) {
   const toneClasses = {
-    slate: 'bg-slate-50 text-slate-700 border-slate-200',
-    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    red: 'bg-red-50 text-red-700 border-red-200',
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    violet: 'bg-violet-50 text-violet-700 border-violet-200',
+    slate: 'bg-slate-50 text-slate-500 border-slate-100',
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    red: 'bg-red-50 text-red-600 border-red-100',
+    amber: 'bg-amber-50 text-amber-600 border-amber-100',
+    blue: 'bg-blue-50 text-blue-600 border-blue-100',
+    violet: 'bg-violet-50 text-violet-600 border-violet-100',
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 min-h-[132px] flex flex-col justify-between">
+    <div className="bg-white rounded-lg border border-slate-200/80 p-4 min-h-[118px] shadow-sm shadow-slate-100/70">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-slate-500 truncate">{title}</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900 tracking-normal break-words">{value}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-slate-500">{title}</p>
+          <p className="mt-2 text-[1.55rem] leading-8 font-semibold text-slate-900 tracking-normal whitespace-nowrap">{value}</p>
         </div>
-        <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${toneClasses[tone]}`}>
-          <Icon className="w-4 h-4" />
+        <div className="flex items-center gap-1 shrink-0">
+          <ExplainButton
+            metric={title}
+            value={value}
+            context={explainContext}
+            variant="icon"
+          />
+          <div className={`w-8 h-8 rounded-lg border flex items-center justify-center ${toneClasses[tone]}`}>
+            <Icon className="w-4 h-4" />
+          </div>
         </div>
       </div>
-      <p className="text-xs text-slate-500 leading-snug mt-3">{detail}</p>
+      <p className="text-xs text-slate-500 leading-snug mt-3 line-clamp-2">{detail}</p>
     </div>
   );
 }
@@ -1135,6 +1145,7 @@ export default function Dashboards() {
         title: 'Saldo de Caixa',
         value: formatCompactCurrency(cashBalance),
         detail: 'Receitas recebidas menos despesas pagas.',
+        explainContext: `Saldo de caixa atual: ${formatCurrency(cashBalance)}. Este valor considera receitas concluídas menos despesas concluídas no regime de caixa.`,
         icon: DollarSign,
         tone: cashBalance >= 0 ? 'emerald' : 'red',
       },
@@ -1142,6 +1153,7 @@ export default function Dashboards() {
         title: 'Fluxo do Mês',
         value: formatCompactCurrency(monthlyFlow),
         detail: `Resultado líquido em ${monthLabel}.`,
+        explainContext: `Fluxo do mês em ${monthLabel}: ${formatCurrency(monthlyFlow)}. Receita do período: ${formatCurrency(latestDre?.revenue || 0)}. Resultado líquido do período: ${formatCurrency(latestDre?.netIncome || 0)}.`,
         icon: monthlyFlow >= 0 ? ArrowUpRight : ArrowDownRight,
         tone: monthlyFlow >= 0 ? 'emerald' : 'red',
       },
@@ -1149,6 +1161,7 @@ export default function Dashboards() {
         title: 'A Receber',
         value: formatCompactCurrency(pendingIncome),
         detail: 'Receitas pendentes de recebimento.',
+        explainContext: `Receitas a receber: ${formatCurrency(pendingIncome)}. Representa receitas pendentes ou vencidas que ainda não entraram no caixa.`,
         icon: ArrowUpRight,
         tone: 'blue',
       },
@@ -1156,6 +1169,7 @@ export default function Dashboards() {
         title: 'A Pagar',
         value: formatCompactCurrency(pendingExpense),
         detail: 'Despesas pendentes de pagamento.',
+        explainContext: `Contas a pagar: ${formatCurrency(pendingExpense)}. Representa despesas pendentes ou vencidas que ainda não saíram do caixa.`,
         icon: ArrowDownRight,
         tone: 'amber',
       },
@@ -1163,6 +1177,7 @@ export default function Dashboards() {
         title: 'Vencidos',
         value: formatCompactCurrency(overdueAmount),
         detail: `${dashboardData?.pending?.overdueCount || 0} lançamento(s) em atraso.`,
+        explainContext: `Total vencido: ${formatCurrency(overdueAmount)}. Despesas vencidas: ${formatCurrency(dashboardData?.pending?.overdueExpenses || 0)}. Receitas vencidas: ${formatCurrency(overdueIncome)}. Quantidade de lançamentos vencidos: ${dashboardData?.pending?.overdueCount || 0}.`,
         icon: Info,
         tone: overdueAmount > 0 ? 'red' : 'slate',
       },
@@ -1170,6 +1185,7 @@ export default function Dashboards() {
         title: 'Inadimplência',
         value: formatCompactCurrency(overdueIncome),
         detail: 'Receitas vencidas e não recebidas.',
+        explainContext: `Inadimplência de clientes: ${formatCurrency(overdueIncome)}. Considera receitas com vencimento em atraso e sem data de recebimento.`,
         icon: TrendingDown,
         tone: overdueIncome > 0 ? 'red' : 'slate',
       },
@@ -1177,6 +1193,7 @@ export default function Dashboards() {
         title: 'Margem Líquida',
         value: `${netMargin.toFixed(1)}%`,
         detail: latestDre ? `Resultado líquido sobre receita em ${monthLabel}.` : 'Sem receita no período.',
+        explainContext: `Margem líquida em ${monthLabel}: ${netMargin.toFixed(1)}%. Receita: ${formatCurrency(latestDre?.revenue || 0)}. Resultado líquido: ${formatCurrency(latestDre?.netIncome || 0)}.`,
         icon: Percent,
         tone: netMargin >= 10 ? 'emerald' : netMargin >= 0 ? 'amber' : 'red',
       },
@@ -1184,6 +1201,7 @@ export default function Dashboards() {
         title: 'Runway',
         value: runway >= 99 ? '99+ meses' : `${runway.toFixed(1)} meses`,
         detail: 'Cobertura estimada pelo consumo médio.',
+        explainContext: `Runway estimado: ${runway >= 99 ? '99+ meses' : `${runway.toFixed(1)} meses`}. Saldo de caixa: ${formatCurrency(cashBalance)}. Burn rate médio: ${formatCurrency(getMetricValue(dashboardData?.burnRate))}.`,
         icon: TrendingUp,
         tone: runway >= 6 ? 'emerald' : runway >= 3 ? 'amber' : 'red',
       },
@@ -1221,7 +1239,7 @@ export default function Dashboards() {
       {/* ========== OVERVIEW ========== */}
       {activeView === 'overview' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {overviewCards.map((card) => (
               <ExecutiveMetricCard
                 key={card.title}
@@ -1229,6 +1247,7 @@ export default function Dashboards() {
                 value={card.value}
                 detail={card.detail}
                 icon={card.icon}
+                explainContext={card.explainContext}
                 tone={card.tone}
               />
             ))}
