@@ -8,7 +8,8 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight,
-  ChevronDown, ChevronUp, ChevronRight, Filter, Info, Download, Loader2, Percent
+  ChevronDown, ChevronUp, ChevronRight, Filter, Info, Download, Loader2, Percent,
+  Clock3, Timer, RefreshCw, CheckCircle2
 } from 'lucide-react';
 import { ExplainButton } from '@/components/ExplainModal';
 import DateRangePicker from '@/components/DateRangePicker';
@@ -68,6 +69,17 @@ interface DashboardOverviewData {
     overdueIncomes?: number;
     overdueAmount?: number;
     overdueCount?: number;
+  };
+  terms?: {
+    avgDaysToReceive: number;
+    avgDaysToPay: number;
+    cashCycleDays: number;
+    receivablesOnTimeRate: number;
+    payablesOnTimeRate: number;
+    receivablesCount: number;
+    payablesCount: number;
+    receivablesWithDueDateCount: number;
+    payablesWithDueDateCount: number;
   };
 }
 
@@ -258,6 +270,47 @@ function ExecutiveMetricCard({
         </div>
       </div>
       <p className="text-xs text-slate-500 leading-snug mt-3 line-clamp-2">{detail}</p>
+    </div>
+  );
+}
+
+function TermMetricCard({
+  title,
+  value,
+  detail,
+  icon: Icon,
+  explainContext,
+  tone = 'slate',
+}: {
+  title: string;
+  value: string;
+  detail: string;
+  icon: ComponentType<{ className?: string }>;
+  explainContext: string;
+  tone?: 'slate' | 'emerald' | 'red' | 'amber' | 'blue' | 'violet';
+}) {
+  const toneClasses = {
+    slate: 'bg-slate-50 text-slate-500',
+    emerald: 'bg-emerald-50 text-emerald-600',
+    red: 'bg-red-50 text-red-600',
+    amber: 'bg-amber-50 text-amber-600',
+    blue: 'bg-blue-50 text-blue-600',
+    violet: 'bg-violet-50 text-violet-600',
+  };
+
+  return (
+    <div className="rounded-lg border border-slate-200/80 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className={`mb-3 flex h-8 w-8 items-center justify-center rounded-lg ${toneClasses[tone]}`}>
+            <Icon className="h-4 w-4" />
+          </div>
+          <p className="text-xs font-medium text-slate-500">{title}</p>
+          <p className="mt-1 text-xl font-semibold leading-7 text-slate-900">{value}</p>
+        </div>
+        <ExplainButton metric={title} value={value} context={explainContext} variant="icon" />
+      </div>
+      <p className="mt-3 text-xs leading-snug text-slate-500">{detail}</p>
     </div>
   );
 }
@@ -1208,6 +1261,62 @@ export default function Dashboards() {
     ] as const;
   }, [dashboardData, latestDre]);
 
+  const termCards = useMemo(() => {
+    const terms = dashboardData?.terms;
+    const pmr = terms?.avgDaysToReceive || 0;
+    const pmp = terms?.avgDaysToPay || 0;
+    const cycle = terms?.cashCycleDays || 0;
+    const receivedOnTime = terms?.receivablesOnTimeRate || 0;
+    const paidOnTime = terms?.payablesOnTimeRate || 0;
+    const receivablesCount = terms?.receivablesCount || 0;
+    const payablesCount = terms?.payablesCount || 0;
+    const receivablesWithDueDateCount = terms?.receivablesWithDueDateCount || 0;
+    const payablesWithDueDateCount = terms?.payablesWithDueDateCount || 0;
+
+    return [
+      {
+        title: 'PMR',
+        value: `${pmr.toFixed(0)} dias`,
+        detail: `${receivablesCount} recebimento(s) analisado(s).`,
+        explainContext: `Prazo Médio de Recebimento: ${pmr.toFixed(1)} dias. Calculado sobre ${receivablesCount} recebimento(s) concluído(s) nos últimos 6 meses, usando a diferença entre a data da receita e a data de recebimento.`,
+        icon: Clock3,
+        tone: pmr <= 30 ? 'emerald' : pmr <= 60 ? 'amber' : 'red',
+      },
+      {
+        title: 'PMP',
+        value: `${pmp.toFixed(0)} dias`,
+        detail: `${payablesCount} pagamento(s) analisado(s).`,
+        explainContext: `Prazo Médio de Pagamento: ${pmp.toFixed(1)} dias. Calculado sobre ${payablesCount} pagamento(s) concluído(s) nos últimos 6 meses, usando a diferença entre a data da despesa e a data de pagamento.`,
+        icon: Timer,
+        tone: pmp >= pmr ? 'emerald' : 'amber',
+      },
+      {
+        title: 'Ciclo de Caixa',
+        value: `${cycle.toFixed(0)} dias`,
+        detail: cycle > 0 ? 'A empresa paga antes de receber.' : 'A empresa recebe antes de pagar.',
+        explainContext: `Ciclo de caixa: ${cycle.toFixed(1)} dias. Fórmula: PMR (${pmr.toFixed(1)} dias) menos PMP (${pmp.toFixed(1)} dias). Valor positivo indica pressão de caixa porque a empresa tende a pagar antes de receber.`,
+        icon: RefreshCw,
+        tone: cycle <= 0 ? 'emerald' : cycle <= 15 ? 'amber' : 'red',
+      },
+      {
+        title: 'Recebido no Prazo',
+        value: `${receivedOnTime.toFixed(0)}%`,
+        detail: `${receivablesWithDueDateCount} recebimento(s) com vencimento.`,
+        explainContext: `Percentual recebido no prazo: ${receivedOnTime.toFixed(1)}%. Considera ${receivablesWithDueDateCount} recebimento(s) concluído(s) com data de vencimento nos últimos 6 meses e compara receiptDate com dueDate.`,
+        icon: CheckCircle2,
+        tone: receivedOnTime >= 90 ? 'emerald' : receivedOnTime >= 70 ? 'amber' : 'red',
+      },
+      {
+        title: 'Pago no Prazo',
+        value: `${paidOnTime.toFixed(0)}%`,
+        detail: `${payablesWithDueDateCount} pagamento(s) com vencimento.`,
+        explainContext: `Percentual pago no prazo: ${paidOnTime.toFixed(1)}%. Considera ${payablesWithDueDateCount} pagamento(s) concluído(s) com data de vencimento nos últimos 6 meses e compara paymentDate com dueDate.`,
+        icon: CheckCircle2,
+        tone: paidOnTime >= 90 ? 'emerald' : paidOnTime >= 70 ? 'amber' : 'red',
+      },
+    ] as const;
+  }, [dashboardData]);
+
   if (isLoading) return <LoadingSpinner message="Carregando dashboards..." />;
 
   return (
@@ -1252,6 +1361,28 @@ export default function Dashboards() {
               />
             ))}
           </div>
+
+          <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Prazos e ciclo financeiro</h3>
+                <p className="mt-1 text-xs text-slate-500">Recebimentos, pagamentos e pontualidade dos últimos 6 meses.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-3">
+              {termCards.map((card) => (
+                <TermMetricCard
+                  key={card.title}
+                  title={card.title}
+                  value={card.value}
+                  detail={card.detail}
+                  icon={card.icon}
+                  explainContext={card.explainContext}
+                  tone={card.tone}
+                />
+              ))}
+            </div>
+          </section>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Revenue Trend */}
