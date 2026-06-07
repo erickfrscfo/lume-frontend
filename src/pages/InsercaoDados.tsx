@@ -23,6 +23,14 @@ interface Counterparty {
   type: string;
 }
 
+interface ExtractedTax {
+  tipo: string;
+  base?: number | null;
+  aliquota_percentual?: number | null;
+  valor: number;
+  retido?: boolean;
+}
+
 interface ExtractedData {
   tipo_documento: string;
   document_role?: string;
@@ -31,6 +39,19 @@ interface ExtractedData {
   valor_total: number;
   data_emissao: string | null;
   data_vencimento: string | null;
+  linha_digitavel?: string | null;
+  codigo_barras?: string | null;
+  multa_atraso_percentual?: number | null;
+  multa_atraso_valor?: number | null;
+  juros_mora_percentual_dia?: number | null;
+  juros_mora_valor?: number | null;
+  desconto_antecipacao_valor?: number | null;
+  desconto_antecipacao_percentual?: number | null;
+  desconto_antecipacao_validade?: string | null;
+  data_limite_pagamento?: string | null;
+  impostos?: ExtractedTax[];
+  valor_impostos_total?: number | null;
+  valor_retencoes_total?: number | null;
   tipo_transacao: string;
   descricao: string;
   referencia: string | null;
@@ -59,6 +80,22 @@ const emptyTransaction = {
   dueDate: '',
   notes: '',
 };
+
+const formatMoney = (value?: number | string | null) => {
+  if (value === null || value === undefined || value === '') return '-';
+  const parsed = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+  if (!Number.isFinite(parsed)) return '-';
+  return parsed.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+};
+
+const formatPercent = (value?: number | string | null, suffix = '%') => {
+  if (value === null || value === undefined || value === '') return '-';
+  const parsed = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+  if (!Number.isFinite(parsed)) return '-';
+  return `${parsed.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}${suffix}`;
+};
+
+const hasValue = (value: unknown) => value !== null && value !== undefined && value !== '';
 
 // ============================================
 // COMPONENT
@@ -326,6 +363,19 @@ export default function InsercaoDados() {
           tipo_transacao: result.extractedData.tipo_transacao || ocrTipoTransacao,
           data: result.extractedData.data_emissao || new Date().toISOString().split('T')[0],
           data_vencimento: result.extractedData.data_vencimento || '',
+          linha_digitavel: result.extractedData.linha_digitavel || '',
+          codigo_barras: result.extractedData.codigo_barras || '',
+          multa_atraso_percentual: result.extractedData.multa_atraso_percentual ?? null,
+          multa_atraso_valor: result.extractedData.multa_atraso_valor ?? null,
+          juros_mora_percentual_dia: result.extractedData.juros_mora_percentual_dia ?? null,
+          juros_mora_valor: result.extractedData.juros_mora_valor ?? null,
+          desconto_antecipacao_valor: result.extractedData.desconto_antecipacao_valor ?? null,
+          desconto_antecipacao_percentual: result.extractedData.desconto_antecipacao_percentual ?? null,
+          desconto_antecipacao_validade: result.extractedData.desconto_antecipacao_validade || '',
+          data_limite_pagamento: result.extractedData.data_limite_pagamento || '',
+          impostos: result.extractedData.impostos || [],
+          valor_impostos_total: result.extractedData.valor_impostos_total ?? null,
+          valor_retencoes_total: result.extractedData.valor_retencoes_total ?? null,
           contraparte_nome: result.extractedData.fornecedor_ou_cliente || '',
           contraparte_documento: result.extractedData.cnpj_cpf || '',
           referencia: result.extractedData.referencia || '',
@@ -396,6 +446,21 @@ export default function InsercaoDados() {
   const getCategoryOptions = (type: string) => {
     return categories.filter(cat => cat.type === type || cat.type === 'BOTH');
   };
+
+  const financialTerms = ocrEditData ? [
+    ocrEditData.linha_digitavel && { label: 'Linha digitável', value: ocrEditData.linha_digitavel, wide: true },
+    ocrEditData.codigo_barras && { label: 'Código de barras', value: ocrEditData.codigo_barras, wide: true },
+    hasValue(ocrEditData.multa_atraso_percentual) && { label: 'Multa por atraso', value: formatPercent(ocrEditData.multa_atraso_percentual) },
+    hasValue(ocrEditData.multa_atraso_valor) && { label: 'Multa em valor', value: formatMoney(ocrEditData.multa_atraso_valor) },
+    hasValue(ocrEditData.juros_mora_percentual_dia) && { label: 'Juros de mora', value: `${formatPercent(ocrEditData.juros_mora_percentual_dia)} ao dia` },
+    hasValue(ocrEditData.juros_mora_valor) && { label: 'Juros em valor', value: formatMoney(ocrEditData.juros_mora_valor) },
+    hasValue(ocrEditData.desconto_antecipacao_percentual) && { label: 'Desconto antecipação', value: formatPercent(ocrEditData.desconto_antecipacao_percentual) },
+    hasValue(ocrEditData.desconto_antecipacao_valor) && { label: 'Desconto em valor', value: formatMoney(ocrEditData.desconto_antecipacao_valor) },
+    ocrEditData.desconto_antecipacao_validade && { label: 'Validade do desconto', value: ocrEditData.desconto_antecipacao_validade },
+    ocrEditData.data_limite_pagamento && { label: 'Limite de pagamento', value: ocrEditData.data_limite_pagamento },
+  ].filter(Boolean) as Array<{ label: string; value: string; wide?: boolean }> : [];
+  const extractedTaxes = (ocrEditData?.impostos || []) as ExtractedTax[];
+  const hasTaxSummary = hasValue(ocrEditData?.valor_impostos_total) || hasValue(ocrEditData?.valor_retencoes_total);
 
   // ============================================
   // RENDER
@@ -1088,6 +1153,65 @@ export default function InsercaoDados() {
                   )}
                 </span>
               </div>
+
+              {(financialTerms.length > 0 || extractedTaxes.length > 0 || hasTaxSummary) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {financialTerms.length > 0 && (
+                    <div className="border border-blue-100 bg-blue-50/50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <DollarSign className="w-4 h-4 text-blue-600" />
+                        <h4 className="text-sm font-semibold text-gray-900">Condições de cobrança</h4>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {financialTerms.map((term) => (
+                          <div key={term.label} className={term.wide ? 'sm:col-span-2' : ''}>
+                            <p className="text-xs font-medium uppercase tracking-wide text-blue-700">{term.label}</p>
+                            <p className="mt-0.5 break-words text-sm font-semibold text-gray-900">{term.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(extractedTaxes.length > 0 || hasTaxSummary) && (
+                    <div className="border border-amber-100 bg-amber-50/50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FileCheck className="w-4 h-4 text-amber-600" />
+                        <h4 className="text-sm font-semibold text-gray-900">Impostos e retenções</h4>
+                      </div>
+                      {hasTaxSummary && (
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Impostos destacados</p>
+                            <p className="mt-0.5 text-sm font-semibold text-gray-900">{formatMoney(ocrEditData.valor_impostos_total)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Retenções</p>
+                            <p className="mt-0.5 text-sm font-semibold text-gray-900">{formatMoney(ocrEditData.valor_retencoes_total)}</p>
+                          </div>
+                        </div>
+                      )}
+                      {extractedTaxes.length > 0 && (
+                        <div className="max-h-56 overflow-auto rounded-lg border border-amber-100 bg-white divide-y divide-gray-100">
+                          {extractedTaxes.map((tax, index) => (
+                            <div key={`${tax.tipo}-${index}`} className="px-3 py-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {tax.tipo}{tax.retido ? ' retido' : ''}
+                                </span>
+                                <span className="text-sm font-semibold text-gray-900">{formatMoney(tax.valor)}</span>
+                              </div>
+                              <p className="mt-0.5 text-xs text-gray-500">
+                                Base {formatMoney(tax.base)} · Alíquota {formatPercent(tax.aliquota_percentual)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Formulário de edição */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

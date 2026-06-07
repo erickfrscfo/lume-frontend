@@ -192,6 +192,13 @@ O frontend apenas envia as requisições. Verifique no backend se `OPENAI_API_KE
 
 ## 📝 Changelog
 
+### 2026-06-07 — Revisão OCR com condições financeiras e tributos
+
+- A revisão OCR passou a exibir condições de cobrança extraídas de boletos/faturas, como linha digitável, multa, juros de mora, desconto e limite de pagamento.
+- A revisão OCR passou a exibir impostos e retenções extraídos de NF/DANFE, com totais e lista detalhada por tributo.
+- A confirmação OCR preserva esses campos no payload enviado ao backend para armazenamento na obrigação financeira.
+- O modal de detalhe da transação passou a exibir os dados da obrigação vinculada, separando condições previstas no documento de juros/multas já realizados.
+
 ### 2026-06-06 — OCR com papel financeiro do documento
 
 - A revisão de OCR passou a exibir o papel financeiro detectado do documento, como fiscal e cobrança, instrumento de cobrança, conta recorrente ou comprovante.

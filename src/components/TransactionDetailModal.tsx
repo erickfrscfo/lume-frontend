@@ -16,6 +16,33 @@ interface TransactionDetail {
   notes: string | null;
 }
 
+interface ObligationTax {
+  tipo: string;
+  base?: number | null;
+  aliquota_percentual?: number | null;
+  valor: number;
+  retido?: boolean;
+}
+
+interface FinancialObligation {
+  id: string;
+  type: string;
+  status: string;
+  source: string;
+  documentNumber: string | null;
+  barcode: string | null;
+  earlyDiscountAmount: number | null;
+  earlyDiscountPercent: number | null;
+  earlyDiscountValidUntil: string | null;
+  lateFeeAmount: number | null;
+  lateFeePercent: number | null;
+  lateInterestPercentPerDay: number | null;
+  paymentLimitDate: string | null;
+  taxDetails: ObligationTax[];
+  totalTaxAmount: number | null;
+  totalWithholdingAmount: number | null;
+}
+
 interface Counterparty {
   id: string;
   name: string;
@@ -45,6 +72,7 @@ interface Transaction {
   category?: { id?: string; name: string; code?: string };
   counterparty?: Counterparty | null;
   detail?: TransactionDetail | null;
+  obligation?: FinancialObligation | null;
   notes?: string;
 }
 
@@ -67,6 +95,15 @@ function formatDateInput(dateStr: string | null | undefined): string {
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}
+
+function formatOptionalCurrency(value: number | null | undefined): string {
+  return value ? formatCurrency(value) : '—';
+}
+
+function formatPercent(value: number | null | undefined, suffix = '%'): string {
+  if (value === null || value === undefined) return '—';
+  return `${value.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}${suffix}`;
 }
 
 function formatDate(dateStr: string): string {
@@ -251,6 +288,20 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
   const txType = transaction.tipo_transacao || transaction.type;
   const isExpense = txType === 'EXPENSE';
   const isIncome = txType === 'INCOME';
+  const obligation = transaction.obligation;
+  const obligationTerms = obligation ? [
+    obligation.barcode && { label: 'Linha digitável / código de barras', value: obligation.barcode, wide: true },
+    obligation.documentNumber && { label: 'Documento da obrigação', value: obligation.documentNumber },
+    obligation.lateFeePercent !== null && obligation.lateFeePercent !== undefined && { label: 'Multa prevista', value: formatPercent(obligation.lateFeePercent) },
+    obligation.lateFeeAmount !== null && obligation.lateFeeAmount !== undefined && { label: 'Multa estimada', value: formatCurrency(obligation.lateFeeAmount) },
+    obligation.lateInterestPercentPerDay !== null && obligation.lateInterestPercentPerDay !== undefined && { label: 'Juros de mora', value: `${formatPercent(obligation.lateInterestPercentPerDay)} ao dia` },
+    obligation.earlyDiscountPercent !== null && obligation.earlyDiscountPercent !== undefined && { label: 'Desconto antecipação', value: formatPercent(obligation.earlyDiscountPercent) },
+    obligation.earlyDiscountAmount !== null && obligation.earlyDiscountAmount !== undefined && { label: 'Desconto em valor', value: formatCurrency(obligation.earlyDiscountAmount) },
+    obligation.earlyDiscountValidUntil && { label: 'Validade desconto', value: formatDate(obligation.earlyDiscountValidUntil) },
+    obligation.paymentLimitDate && { label: 'Limite de pagamento', value: formatDate(obligation.paymentLimitDate) },
+  ].filter(Boolean) as Array<{ label: string; value: string; wide?: boolean }> : [];
+  const obligationTaxes = obligation?.taxDetails || [];
+  const hasObligationTaxSummary = Boolean(obligation?.totalTaxAmount || obligation?.totalWithholdingAmount);
 
   const statusLabels: Record<string, { label: string; color: string }> = {
     PENDING: { label: 'Pendente', color: 'bg-amber-100 text-amber-700 border-amber-200' },
@@ -702,6 +753,59 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
               </div>
             </div>
           </div>
+
+          {obligation && (obligationTerms.length > 0 || obligationTaxes.length > 0 || hasObligationTaxSummary) && (
+            <div className="bg-slate-50 rounded-xl p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <span className="w-5 h-5 bg-slate-200 rounded flex items-center justify-center text-xs">#</span>
+                Dados da Obrigação Financeira
+              </h3>
+
+              {obligationTerms.length > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {obligationTerms.map((term) => (
+                    <div key={term.label} className={term.wide ? 'col-span-2' : ''}>
+                      <label className="text-xs text-slate-500 block mb-1">{term.label}</label>
+                      <p className="text-sm font-medium text-slate-900 break-words">{term.value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(obligationTaxes.length > 0 || hasObligationTaxSummary) && (
+                <div className="border-t border-slate-200 pt-3 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-slate-500 block mb-1">Impostos destacados</label>
+                      <p className="text-sm font-medium text-slate-900">{formatOptionalCurrency(obligation.totalTaxAmount)}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 block mb-1">Retenções</label>
+                      <p className="text-sm font-medium text-slate-900">{formatOptionalCurrency(obligation.totalWithholdingAmount)}</p>
+                    </div>
+                  </div>
+
+                  {obligationTaxes.length > 0 && (
+                    <div className="rounded-lg border border-slate-200 bg-white divide-y divide-slate-100 max-h-48 overflow-auto">
+                      {obligationTaxes.map((tax, index) => (
+                        <div key={`${tax.tipo}-${index}`} className="px-3 py-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-slate-900">
+                              {tax.tipo}{tax.retido ? ' retido' : ''}
+                            </span>
+                            <span className="text-sm font-semibold text-slate-900">{formatCurrency(tax.valor)}</span>
+                          </div>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            Base {formatOptionalCurrency(tax.base)} · Alíquota {formatPercent(tax.aliquota_percentual)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Botão salvar (modo edição) */}
           {isEditing && (
