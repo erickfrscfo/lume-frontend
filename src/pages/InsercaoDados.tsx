@@ -25,6 +25,7 @@ interface Counterparty {
 
 interface ExtractedData {
   tipo_documento: string;
+  document_role?: string;
   fornecedor_ou_cliente: string;
   cnpj_cpf: string | null;
   valor_total: number;
@@ -361,7 +362,10 @@ export default function InsercaoDados() {
       const res = await api.post(`/ocr/confirm/${ocrResult.documentId}`, payload);
 
       if (res.data?.success) {
-        setOcrConfirmResult({ success: true, message: 'Transação criada com sucesso a partir do documento!' });
+        setOcrConfirmResult({
+          success: true,
+          message: res.data?.data?.message || 'Documento confirmado com sucesso.',
+        });
         // Reset
         setTimeout(() => {
           setOcrFile(null);
@@ -1069,6 +1073,19 @@ export default function InsercaoDados() {
                     ocrResult.extractedData.tipo_documento === 'contrato' ? 'Contrato' :
                     'Outro'
                   }</strong>
+                  {ocrResult.extractedData.document_role && (
+                    <span className="ml-2 text-gray-500">
+                      Papel financeiro: <strong>{
+                        ocrResult.extractedData.document_role === 'FISCAL_AND_CHARGE' ? 'Fiscal e cobrança' :
+                        ocrResult.extractedData.document_role === 'FISCAL_ONLY' ? 'Apenas fiscal' :
+                        ocrResult.extractedData.document_role === 'PAYMENT_INSTRUMENT' ? 'Instrumento de cobrança' :
+                        ocrResult.extractedData.document_role === 'UTILITY_BILL' ? 'Conta recorrente' :
+                        ocrResult.extractedData.document_role === 'PAYMENT_PROOF' ? 'Comprovante' :
+                        ocrResult.extractedData.document_role === 'CONTRACT' ? 'Contrato' :
+                        'Outro'
+                      }</strong>
+                    </span>
+                  )}
                 </span>
               </div>
 

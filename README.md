@@ -192,6 +192,11 @@ O frontend apenas envia as requisições. Verifique no backend se `OPENAI_API_KE
 
 ## 📝 Changelog
 
+### 2026-06-06 — OCR com papel financeiro do documento
+
+- A revisão de OCR passou a exibir o papel financeiro detectado do documento, como fiscal e cobrança, instrumento de cobrança, conta recorrente ou comprovante.
+- A mensagem de confirmação agora diferencia criação de nova obrigação financeira de vínculo a uma obrigação existente.
+
 ### 2026-06-06 — Cards executivos na Visão Geral
 
 - A aba `Dashboards > Visão Geral` passou a exibir 8 cards no topo: Saldo de Caixa, Fluxo do Mês, A Receber, A Pagar, Vencidos, Inadimplência, Margem Líquida e Runway.
