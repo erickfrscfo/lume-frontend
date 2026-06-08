@@ -5,6 +5,8 @@ import { financialApi } from '@/lib/api';
 interface ObligationInstallment {
   id: string;
   obligationId: string;
+  installmentId: string | null;
+  isInstallment: boolean;
   installmentNumber: number;
   totalInstallments: number;
   status: string;
@@ -89,7 +91,7 @@ export default function ObrigacoesFinanceiras() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Obrigações Financeiras</h1>
-          <p className="mt-1 text-sm text-slate-500">Parcelas a pagar ou receber por vencimento nos próximos 120 dias.</p>
+          <p className="mt-1 text-sm text-slate-500">Contas a pagar e receber por vencimento, com ou sem parcelamento.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -124,7 +126,7 @@ export default function ObrigacoesFinanceiras() {
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total em aberto</p>
           <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(summary.totalAmount)}</p>
-          <p className="mt-1 text-sm text-slate-500">{summary.count} parcela(s) no horizonte</p>
+          <p className="mt-1 text-sm text-slate-500">{summary.count} conta(s) no horizonte</p>
         </div>
         <div className="rounded-lg border border-red-100 bg-red-50 p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-red-600">Vencidas</p>
@@ -134,7 +136,7 @@ export default function ObrigacoesFinanceiras() {
         <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-blue-600">Horizonte</p>
           <p className="mt-2 text-2xl font-bold text-blue-700">{summary.horizonDays} dias</p>
-          <p className="mt-1 text-sm text-blue-600">Visão por parcelas futuras</p>
+          <p className="mt-1 text-sm text-blue-600">Agenda financeira futura</p>
         </div>
       </div>
 
@@ -156,7 +158,7 @@ export default function ObrigacoesFinanceiras() {
               {bucket.key === 'overdue' ? <AlertTriangle className="h-4 w-4 text-red-500" /> : <CalendarClock className="h-4 w-4 text-blue-500" />}
             </div>
             <p className="mt-2 text-xl font-bold text-slate-900">{formatCurrency(bucket.totalAmount)}</p>
-            <p className="mt-1 text-xs text-slate-500">{bucket.count} parcela(s)</p>
+            <p className="mt-1 text-xs text-slate-500">{bucket.count} conta(s)</p>
           </button>
         ))}
       </div>
@@ -165,7 +167,7 @@ export default function ObrigacoesFinanceiras() {
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div>
             <h2 className="font-semibold text-slate-900">{topBuckets.find((bucket) => bucket.key === activeBucket)?.label || 'Parcelas'}</h2>
-            <p className="text-sm text-slate-500">Obrigações com vencimento no período selecionado.</p>
+            <p className="text-sm text-slate-500">Contas e parcelas com vencimento no período selecionado.</p>
           </div>
         </div>
 
@@ -174,11 +176,11 @@ export default function ObrigacoesFinanceiras() {
         ) : error ? (
           <div className="p-8 text-center text-sm text-red-600">{error}</div>
         ) : activeItems.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500">Nenhuma parcela encontrada para este período.</div>
+          <div className="p-8 text-center text-sm text-slate-500">Nenhuma conta encontrada para este período.</div>
         ) : (
           <div className="divide-y divide-slate-100">
             {activeItems.map((item) => (
-              <div key={item.id} className="grid grid-cols-1 gap-4 px-5 py-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr_auto] lg:items-center">
+              <div key={item.id} className="grid grid-cols-1 gap-4 px-5 py-4 lg:grid-cols-[1.6fr_1fr_1fr_1fr_auto] lg:items-center">
                 <div>
                   <div className="flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-slate-400" />
@@ -191,9 +193,9 @@ export default function ObrigacoesFinanceiras() {
                 </div>
 
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Parcela</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Conta</p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {item.installmentNumber}/{item.totalInstallments}
+                    {item.totalInstallments > 1 ? `Parcela ${item.installmentNumber}/${item.totalInstallments}` : 'Única'}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">{item.documentNumber || item.obligation?.documentNumber || 'Sem referência'}</p>
                 </div>

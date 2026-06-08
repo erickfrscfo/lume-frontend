@@ -83,7 +83,7 @@ lume-frontend/
 | `Dashboards.tsx` | `/dashboards` | Dashboards, DRE, fluxo de caixa, transações e exportação. |
 | `AlertasIA.tsx` | `/alertas` | Central de alertas financeiros e insights acionáveis. |
 | `ReportBuilder.tsx` | `/relatorio` | Montagem de relatório com indicadores padrão/customizados e preview. |
-| `ObrigacoesFinanceiras.tsx` | `/obrigacoes` | Visão de parcelas a pagar/receber por horizonte de vencimento. |
+| `ObrigacoesFinanceiras.tsx` | `/obrigacoes` | Visão de contas a pagar/receber por horizonte de vencimento, com ou sem parcelas. |
 | `Conciliacao.tsx` | `/conciliacao` | Conciliação financeira, marcação de pagamentos/recebimentos e conciliação em lote. |
 | `Integracoes.tsx` | `/integracoes` | Tela de integrações externas, atualmente preparada para evolução. |
 
@@ -119,7 +119,7 @@ lume-frontend/
 - Alertas financeiros com marcação como lido, dispensa e geração manual.
 - Classificação de custos fixos e variáveis.
 - Montagem de relatório com indicadores padrão, indicadores customizados e template persistido.
-- Obrigações financeiras com parcelas agrupadas em vencidas, próximos 30, 60, 90 e 120 dias.
+- Obrigações financeiras com contas simples e parceladas agrupadas em vencidas, próximos 30, 60, 90 e 120 dias.
 - Conciliação financeira acessível por rota protegida e navegação lateral.
 - Exportação de dados para planilha nas telas que usam `xlsx`.
 - Deploy SPA preparado para Vercel com rewrite para `index.html`.
@@ -197,7 +197,7 @@ O frontend apenas envia as requisições. Verifique no backend se `OPENAI_API_KE
 ### 2026-06-07 — Tela de obrigações financeiras parceladas
 
 - Adicionada a rota protegida `/obrigacoes` e item de menu `Obrigações Financeiras`.
-- A tela mostra parcelas vencidas e parcelas a vencer nos próximos 30, 60, 90 e 120 dias, com filtros entre contas a pagar, contas a receber e tudo.
+- A tela mostra contas vencidas e contas a vencer nos próximos 30, 60, 90 e 120 dias, incluindo obrigações simples e parcelas, com filtros entre contas a pagar, contas a receber e tudo.
 - A revisão OCR passou a exibir parcelamento detectado antes da confirmação.
 - O detalhe da transação passou a mostrar a parcela vinculada quando a transação representa uma parcela da obrigação.
 
