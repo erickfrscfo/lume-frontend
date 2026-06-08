@@ -43,6 +43,17 @@ interface FinancialObligation {
   totalWithholdingAmount: number | null;
 }
 
+interface ObligationInstallment {
+  id: string;
+  installmentNumber: number;
+  totalInstallments: number;
+  status: string;
+  amount: number;
+  dueDate: string | null;
+  documentNumber: string | null;
+  barcode: string | null;
+}
+
 interface Counterparty {
   id: string;
   name: string;
@@ -72,6 +83,7 @@ interface Transaction {
   category?: { id?: string; name: string; code?: string };
   counterparty?: Counterparty | null;
   detail?: TransactionDetail | null;
+  installment?: ObligationInstallment | null;
   obligation?: FinancialObligation | null;
   notes?: string;
 }
@@ -751,6 +763,15 @@ export default function TransactionDetailModal({ transaction, isOpen, onClose, o
                   </p>
                 )}
               </div>
+
+              {transaction.installment && (
+                <div>
+                  <label className="text-xs text-slate-500 block mb-1">Parcela</label>
+                  <p className="text-sm text-slate-900">
+                    {transaction.installment.installmentNumber}/{transaction.installment.totalInstallments}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

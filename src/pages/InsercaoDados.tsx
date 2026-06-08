@@ -31,6 +31,16 @@ interface ExtractedTax {
   retido?: boolean;
 }
 
+interface ExtractedInstallment {
+  numero: number;
+  total?: number | null;
+  valor: number;
+  vencimento?: string | null;
+  referencia?: string | null;
+  linha_digitavel?: string | null;
+  codigo_barras?: string | null;
+}
+
 interface ExtractedData {
   tipo_documento: string;
   document_role?: string;
@@ -39,6 +49,9 @@ interface ExtractedData {
   valor_total: number;
   data_emissao: string | null;
   data_vencimento: string | null;
+  numero_parcela?: number | null;
+  total_parcelas?: number | null;
+  parcelas?: ExtractedInstallment[];
   linha_digitavel?: string | null;
   codigo_barras?: string | null;
   multa_atraso_percentual?: number | null;
@@ -363,6 +376,9 @@ export default function InsercaoDados() {
           tipo_transacao: result.extractedData.tipo_transacao || ocrTipoTransacao,
           data: result.extractedData.data_emissao || new Date().toISOString().split('T')[0],
           data_vencimento: result.extractedData.data_vencimento || '',
+          numero_parcela: result.extractedData.numero_parcela ?? null,
+          total_parcelas: result.extractedData.total_parcelas ?? null,
+          parcelas: result.extractedData.parcelas || [],
           linha_digitavel: result.extractedData.linha_digitavel || '',
           codigo_barras: result.extractedData.codigo_barras || '',
           multa_atraso_percentual: result.extractedData.multa_atraso_percentual ?? null,
@@ -460,6 +476,7 @@ export default function InsercaoDados() {
     ocrEditData.data_limite_pagamento && { label: 'Limite de pagamento', value: ocrEditData.data_limite_pagamento },
   ].filter(Boolean) as Array<{ label: string; value: string; wide?: boolean }> : [];
   const extractedTaxes = (ocrEditData?.impostos || []) as ExtractedTax[];
+  const extractedInstallments = (ocrEditData?.parcelas || []) as ExtractedInstallment[];
   const hasTaxSummary = hasValue(ocrEditData?.valor_impostos_total) || hasValue(ocrEditData?.valor_retencoes_total);
 
   // ============================================
@@ -1153,6 +1170,37 @@ export default function InsercaoDados() {
                   )}
                 </span>
               </div>
+
+              {extractedInstallments.length > 0 && (
+                <div className="border border-slate-200 bg-slate-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FileText className="w-4 h-4 text-slate-600" />
+                    <h4 className="text-sm font-semibold text-gray-900">Parcelamento detectado</h4>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
+                    {extractedInstallments.map((installment, index) => (
+                      <div key={`${installment.numero}-${index}`} className="grid grid-cols-1 gap-2 px-3 py-2 sm:grid-cols-4 sm:items-center">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Parcela</p>
+                          <p className="text-sm font-semibold text-slate-900">{installment.numero}/{installment.total || ocrEditData.total_parcelas || extractedInstallments.length}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Valor</p>
+                          <p className="text-sm font-semibold text-slate-900">{formatMoney(installment.valor)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Vencimento</p>
+                          <p className="text-sm font-semibold text-slate-900">{installment.vencimento || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Referência</p>
+                          <p className="text-sm font-semibold text-slate-900 break-words">{installment.referencia || '-'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {(financialTerms.length > 0 || extractedTaxes.length > 0 || hasTaxSummary) && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

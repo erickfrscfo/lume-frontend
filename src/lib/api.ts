@@ -54,6 +54,12 @@ export const financialApi = {
   dashboard: () => api.get('/financial/dashboard'),
   cashflow: (months?: number) => api.get(`/financial/cashflow?months=${months || 12}`),
   dre: (months?: number) => api.get(`/financial/dre?months=${months || 7}`),
+  obligations: (horizonDays: number = 120, type?: 'PAYABLE' | 'RECEIVABLE' | 'all', status?: string) => {
+    let url = `/financial/obligations?horizonDays=${horizonDays}`;
+    if (type && type !== 'all') url += `&type=${type}`;
+    if (status && status !== 'all') url += `&status=${status}`;
+    return api.get(url);
+  },
   transactions: (page?: number, type?: string, startDate?: string, endDate?: string, status?: string, dueDateStart?: string, dueDateEnd?: string) => {
     let url = `/financial/transactions?page=${page || 1}&limit=50`;
     if (type) url += `&type=${type}`;

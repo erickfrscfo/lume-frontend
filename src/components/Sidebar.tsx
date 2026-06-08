@@ -11,6 +11,7 @@ import {
   Bell,
   FileBarChart2,
   CheckCircle,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -24,6 +25,7 @@ const navItems = [
   { path: '/dashboards', icon: BarChart3, label: 'Dashboards' },
   { path: '/alertas', icon: Bell, label: 'Alertas Financeiros' },
   { path: '/relatorio', icon: FileBarChart2, label: 'Monte seu Relatório' },
+  { path: '/obrigacoes', icon: CalendarClock, label: 'Obrigações Financeiras' },
   { path: '/conciliacao', icon: CheckCircle, label: 'Conciliação' },
   { path: '/integracoes', icon: Link2, label: 'Integrações' },
 ];
