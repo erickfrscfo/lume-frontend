@@ -6,6 +6,7 @@ interface ObligationInstallment {
   id: string;
   obligationId: string;
   installmentId: string | null;
+  transactionOnly?: boolean;
   isInstallment: boolean;
   installmentNumber: number;
   totalInstallments: number;
@@ -187,6 +188,9 @@ export default function ObrigacoesFinanceiras() {
                     <p className="font-medium text-slate-900">{item.obligation?.counterparty?.name || 'Contraparte não identificada'}</p>
                   </div>
                   <p className="mt-1 text-sm text-slate-500">{item.obligation?.description || 'Obrigação financeira'}</p>
+                  {item.transactionOnly && (
+                    <p className="mt-1 text-xs font-medium text-blue-600">Registrada como transação pendente</p>
+                  )}
                   {item.obligation?.category && (
                     <p className="mt-1 text-xs text-slate-400">{item.obligation.category.code} - {item.obligation.category.name}</p>
                   )}

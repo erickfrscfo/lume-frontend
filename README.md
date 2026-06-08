@@ -197,7 +197,7 @@ O frontend apenas envia as requisições. Verifique no backend se `OPENAI_API_KE
 ### 2026-06-07 — Tela de obrigações financeiras parceladas
 
 - Adicionada a rota protegida `/obrigacoes` e item de menu `Obrigações Financeiras`.
-- A tela mostra contas vencidas e contas a vencer nos próximos 30, 60, 90 e 120 dias, incluindo obrigações simples e parcelas, com filtros entre contas a pagar, contas a receber e tudo.
+- A tela mostra contas vencidas e contas a vencer nos próximos 30, 60, 90 e 120 dias, incluindo obrigações simples, parcelas e transações pendentes sem obrigação formal, com filtros entre contas a pagar, contas a receber e tudo.
 - A revisão OCR passou a exibir parcelamento detectado antes da confirmação.
 - O detalhe da transação passou a mostrar a parcela vinculada quando a transação representa uma parcela da obrigação.
 
